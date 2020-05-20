@@ -3,6 +3,14 @@
 
 import numpy as np
 import cv2
+import open3d as o3d
+
+
+def visualize(cloud):
+	pcd = o3d.geometry.PointCloud()
+	pcd.points = o3d.utility.Vector3dVector(cloud)
+	o3d.io.write_point_cloud('pc.ply',pcd)
+	return None
 
 # Intrinsic Camera Matrix
 #K = np.array([[538.731, 0, 503.622],[0, 538.615, 265.447],[0, 0, 1]], dtype = np.float32)
@@ -23,6 +31,9 @@ search_params = dict(checks = 100)
 flann = cv2.FlannBasedMatcher(index_params, search_params)
 
 i = 1
+final_cloud = np.array([])
+
+
 while(i < 237):
 	img1 = cv2.imread('/home/arihant/Desktop/sfm/delivery_area_rig_undistorted/delivery_area/images/images_rig_cam4_undistorted/'+str(i)+'.png')
 	img2 = cv2.imread('/home/arihant/Desktop/sfm/delivery_area_rig_undistorted/delivery_area/images/images_rig_cam4_undistorted/'+str(i+1)+'.png')
@@ -44,9 +55,9 @@ while(i < 237):
 			pts1.append(kp1[m.queryIdx].pt)
 			pts2.append(kp2[m.trainIdx].pt)
 	
-	pts1 = np.int32(pts1)
-	pts2 = np.int32(pts2)
-	
+	pts1 = np.float32(pts1)
+	pts2 = np.float32(pts2)
+
 	E, mask = cv2.findEssentialMat(pts1, pts2, K, method = cv2.RANSAC, prob = 0.999, threshold = 0.4, mask = None)
 	pts1 = pts1[mask.ravel() == 1]
 	pts2 = pts2[mask.ravel() == 1]
@@ -55,29 +66,27 @@ while(i < 237):
 	
 	P2 = np.hstack((R,t))
 	P2 = K.dot(P2)
+	pts1 = np.transpose(pts1)
+	pts2 = np.transpose(pts2)
 	pts1 = pts1.reshape(2, -1)
 	pts2 = pts2.reshape(2, -1)
-	#print(P1, P2)
+	#print(pts1)
 	cloud = cv2.triangulatePoints(P1, P2, pts1, pts2).reshape(-1, 4)[:, :3]
+	#cloud = cloud / cloud[3]
+	#final_cloud = final_cloud + [cloud]
+	if i == 1:
+		final_cloud = cloud
+	else:
+		final_cloud = np.concatenate((final_cloud, cloud), axis = 0)
+	#print(final_cloud.shape)
+	#x = cv2.triangulatePoints(P1, P2, pts1, pts2).reshape(-1, 4)[:, :3]
+	#print(E)
 	
 	cv2.imshow('image', img1)
 	if cv2.waitKey(1) & 0xff == ord('q'):
 		break
-	
+	P1 = np.copy(P2)
 	i = i + 1
 	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
+x = visualize(final_cloud)
 	
