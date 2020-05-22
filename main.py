@@ -1,92 +1,72 @@
-# STRUCTURE FROM MOTION
-# AUTHOR: ARIHANT GAUR
-
-import numpy as np
 import cv2
+import numpy as np
 import open3d as o3d
 
+with open('/home/arihant/structure-from-motion/intrinsics.txt') as f:
+	lines = f.readlines()
+K = np.array([l.strip().split(' ') for l in lines], dtype=np.float32)
+downscale = 2
+K[0,0] = K[0,0] / float(downscale)
+K[1,1] = K[1,1] / float(downscale)
+K[0,2] = K[0,2] / float(downscale)
+K[1,2] = K[1,2] / float(downscale)
 
-def visualize(cloud):
-	pcd = o3d.geometry.PointCloud()
-	pcd.points = o3d.utility.Vector3dVector(cloud)
-	o3d.io.write_point_cloud('pc.ply',pcd)
-	return None
+cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
+cv2.namedWindow('image2', cv2.WINDOW_NORMAL)
 
-# Intrinsic Camera Matrix
-#K = np.array([[538.731, 0, 503.622],[0, 538.615, 265.447],[0, 0, 1]], dtype = np.float32)
-K = np.array([[711.926, 0, 399.418],[0, 710.904, 243.435],[0, 0, 1]], dtype = np.float32)
-# Can add CLAHE to increase the number of features 
-clahe = cv2.createCLAHE(clipLimit = 5.0)
+img1 = cv2.imread('/home/arihant/structure-from-motion/img1.ppm')
+img1 = cv2.resize(img1, (0,0), fx = 1/float(downscale), fy = 1/float(downscale), interpolation = cv2.INTER_LINEAR)
 
-# First projection matrix
-P1 = np.array([[1, 0, 0, 0], [0, 1, 0, 0],[0, 0, 1, 0]])
+img2 = cv2.imread('/home/arihant/structure-from-motion/img2.ppm')
+img2 = cv2.resize(img2, (0,0), fx = 1/float(downscale), fy = 1/float(downscale), interpolation = cv2.INTER_LINEAR)
 
-# SIFT feature detector
 sift = cv2.xfeatures2d.SIFT_create()
 
-# FLANN matcher parameters
-FLANN_INDEX_KDTREE = 1
-index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
-search_params = dict(checks = 100)
-flann = cv2.FlannBasedMatcher(index_params, search_params)
+kp1, des1 = sift.detectAndCompute(img1, None)
+kp2, des2 = sift.detectAndCompute(img2, None)
 
-i = 1
-final_cloud = np.array([])
+flann = cv2.DescriptorMatcher_create(cv2.DescriptorMatcher_FLANNBASED)
+matches = flann.knnMatch(des1, des2, k = 2)
+
+good = []
+pts1 = []
+pts2 = []
+for counter, (m,n) in enumerate(matches):
+	if m.distance < 0.8 * n.distance:
+		good.append(m)
+		pts1.append(kp1[m.queryIdx].pt)
+		pts2.append(kp2[m.trainIdx].pt)
+pts1 = np.array(pts1).reshape(-1,1,2)
+pts2 = np.array(pts2).reshape(-1,1,2)
 
 
-while(i < 237):
-	img1 = cv2.imread('/home/arihant/Desktop/sfm/delivery_area_rig_undistorted/delivery_area/images/images_rig_cam4_undistorted/'+str(i)+'.png')
-	img2 = cv2.imread('/home/arihant/Desktop/sfm/delivery_area_rig_undistorted/delivery_area/images/images_rig_cam4_undistorted/'+str(i+1)+'.png')
-	img1gray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-	img2gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-	
-	kp1, des1 = sift.detectAndCompute(img1gray, None)
-	kp2, des2 = sift.detectAndCompute(img2gray, None)
-	#kp1 = np.array([kp1[idx].pt for idx in range(len(kp1))], dtype = np.float32)
-	#kp2 = np.array([kp2[idx].pt for idx in range(len(kp2))], dtype = np.float32)
-	
-	matches = flann.knnMatch(des1, des2, k = 2)
-	good = []
-	pts1 = []
-	pts2 = []
-	for counter, (m,n) in enumerate(matches):
-		if m.distance < 0.7 * n.distance:
-			good.append(m)
-			pts1.append(kp1[m.queryIdx].pt)
-			pts2.append(kp2[m.trainIdx].pt)
-	
-	pts1 = np.float32(pts1)
-	pts2 = np.float32(pts2)
+E, mask = cv2.findEssentialMat(pts1, pts2, K, method = cv2.RANSAC, prob = 0.999, threshold = 1.0, mask = None)
 
-	E, mask = cv2.findEssentialMat(pts1, pts2, K, method = cv2.RANSAC, prob = 0.999, threshold = 0.4, mask = None)
-	pts1 = pts1[mask.ravel() == 1]
-	pts2 = pts2[mask.ravel() == 1]
-	
-	_, R, t, mask = cv2.recoverPose(E, pts1, pts2, K)
-	
-	P2 = np.hstack((R,t))
-	P2 = K.dot(P2)
-	pts1 = np.transpose(pts1)
-	pts2 = np.transpose(pts2)
-	pts1 = pts1.reshape(2, -1)
-	pts2 = pts2.reshape(2, -1)
-	#print(pts1)
-	cloud = cv2.triangulatePoints(P1, P2, pts1, pts2).reshape(-1, 4)[:, :3]
-	#cloud = cloud / cloud[3]
-	#final_cloud = final_cloud + [cloud]
-	if i == 1:
-		final_cloud = cloud
-	else:
-		final_cloud = np.concatenate((final_cloud, cloud), axis = 0)
-	#print(final_cloud.shape)
-	#x = cv2.triangulatePoints(P1, P2, pts1, pts2).reshape(-1, 4)[:, :3]
-	#print(E)
-	
-	cv2.imshow('image', img1)
-	if cv2.waitKey(1) & 0xff == ord('q'):
-		break
-	P1 = np.copy(P2)
-	i = i + 1
-	
-x = visualize(final_cloud)
-	
+pts1 = pts1[mask.ravel() == 1]
+pts2 = pts2[mask.ravel() == 1]
+
+_, R, t, mask = cv2.recoverPose(E, pts1, pts2, K)
+
+
+E1 = np.eye(3,4)
+E2 = np.hstack((R, t))
+P1 = np.matmul(K, E1)
+P2 = np.matmul(K, E2)
+
+pts1 = cv2.undistortPoints(pts1, cameraMatrix = K, distCoeffs = None).reshape(-1, 2)
+pts2 = cv2.undistortPoints(pts2, cameraMatrix = K, distCoeffs = None).reshape(-1, 2)
+cloud4d = cv2.triangulatePoints(E1, E2, pts1.T, pts2.T)
+cloud = cloud4d / np.tile(cloud4d[-1,:],(4,1))
+cloud = cloud[:3,:].T
+
+
+
+cv2.imshow('image1', img1)
+cv2.imshow('image2', img2)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+
+pcd = o3d.geometry.PointCloud()
+pcd.points = o3d.utility.Vector3dVector(cloud)
+o3d.io.write_point_cloud('pc.ply',pcd)
+print('DONE! Open pc.ply with meshlab for point cloud.')
