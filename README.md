@@ -13,8 +13,4 @@ Input: [First Image](img1comp.png) and [Second Image](img2comp.png)
 
 Output: [Output](output.png)
 
-# Team Members
-
-1. Arihant Gaur
-2. Saurabh Kemekar
-3. Aman Jain
+Current under progress! Bundle Adjustment and TKF will be added later.
