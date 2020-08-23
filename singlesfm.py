@@ -16,18 +16,22 @@ def Triangulation(R1, t1, R2, t2, kp0, kp1, K):
 	cloud = cloud / cloud[3]
 	cloud = cv2.convertPointsFromHomogeneous(cloud.T)
 	return cloud
+	
+#def bundle_adjustment():
 
 def ReprojectionError(X, R, t, K, p):
 	total_error = 0
 	r, _ = cv2.Rodrigues(R)
 	
+	print(X.shape)
+	
 	p1, _ = cv2.projectPoints(X, r, t, K, distCoeffs = None)
 	
 	p1 = p1[:, 0, :]
 	#print(p1[0], p[0])
-	for i in range(len(p)):
-		error = np.sqrt((p[i][0] - p1[i][0])**2 + (p[i][0] - p1[i][0])**2) / len(p1)
-		total_error += error
+	#for i in range(len(p)):
+	#	error = np.sqrt((p[i][0] - p1[i][0])**2 + (p[i][0] - p1[i][0])**2) / len(p1)
+	#	total_error += error
 		
 	#p1 = p1[:, 0, :]
 	#p = p[:, 0, :]
