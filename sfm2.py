@@ -151,7 +151,7 @@ for img in img_list:
 		images = images + [img]
 i = 0		
 
-apply_ba = True
+apply_ba = False
 while(i < len(images) - 1):
 	img0 = cv2.pyrDown(cv2.imread(img_dir + images[i]))
 	img1 = cv2.pyrDown(cv2.imread(img_dir + images[i + 1]))

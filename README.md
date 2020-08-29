@@ -7,7 +7,31 @@
 3. Run ```python3 sfm.py```.
 4. If executed successfully, open ```stereo.ply``` with meshlab, in order to see the sparse reconstruction. 
 
+## Pipeline
+1. Acquiring image pair at a time.
+2. Detection of features using SIFT.
+3. Feature matching using brute force KNN. Good feature matches are by taking the distance ratio (According to Lowe's paper) as 0.7.
+4. Calculation of Essential matrix, to relate the camera locations. Outliers are rejected using RANSAC.
+5. Equivalent rotation matrix (R) and translation vector (t) are taken from essential matrix using SVD.
+6. Projection matrix for each camera location is calculated, and triangulation of point correspondences are calculated.
+7. The quality of triangulation is done using re-projection error. The triangulated points are re - mapped onto the image plane and the deviation between the matching points is calculated. (Note that in the code, rotation matrix is converted into vector using Rodrigues equation).
+8. An optional step is added, that is, minimising of re-projection error using bundle adjustment. The triangulated points and projection matrices are stacked and converted to feature vector. Then, re-projection error is considered as cost function and optimisation is done using non - linear least squares method (Levenberg Marquardt method).
+9. The 3D points are converted into point cloud format, along with the corresponding pixel colour at that location, which is then stored in ```stereo.ply```.
+
+## Dataset
+
+The dataset used is fountain - P11 ([Link](https://github.com/openMVG/SfM_quality_evaluation/tree/master/Benchmarking_Camera_Calibration_2008/fountain-P11)).
+
+A sample image:
+![](/home/arihant/structure-from-motion/0008.jpg)
+
+### Output
+
+The output is without bundle adjustment since it is extremely computationally expensive. Currently working on speeding up that process.
+
+![Image](result.png)
+
 ## TO DO
 
-1. Add Bundle Adjustment
+1. Speed up bundle adjustment.
 2. Sparse to Dense using MVS.
