@@ -23,7 +23,7 @@
 The dataset used is fountain - P11 ([Link](https://github.com/openMVG/SfM_quality_evaluation/tree/master/Benchmarking_Camera_Calibration_2008/fountain-P11)).
 
 A sample image:
-![](/home/arihant/structure-from-motion/0008.jpg)
+![](0008.jpg)
 
 ### Output
 
