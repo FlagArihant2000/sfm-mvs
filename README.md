@@ -1,16 +1,13 @@
 # Structure from Motion (SFM)
 
-NOTE: The repository is still not complete and is subject to change. 
-
 ## Steps to Execute
 
 1. Clone the repository as ```git clone https://github.com/FlagArihant2000/structure-from-motion```
 2. ```cd structure-from-motion```
-3. Run ```python3 main.py```.
-4. If executed successfully, open ```pc.ply``` with meshlab, in order to see the sparse reconstruction. 
+3. Run ```python3 sfm.py```.
+4. If executed successfully, open ```stereo.ply``` with meshlab, in order to see the sparse reconstruction. 
 
-Input: [First Image](img1comp.png) and [Second Image](img2comp.png)
+## TO DO
 
-Output: [Output](output.png)
-
-Current under progress! Bundle Adjustment and TKF will be added later.
+1. Add Bundle Adjustment
+2. Sparse to Dense using MVS.
