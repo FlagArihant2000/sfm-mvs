@@ -142,7 +142,7 @@ K[1,1] = K[1,1] / float(downscale)
 K[0,2] = K[0,2] / float(downscale)
 K[1,2] = K[1,2] / float(downscale)
 
-mesh = o3d.geometry.TriangleMesh.create_coordinate_frame()
+
 R_t_0 = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]])
 R_t_1 = np.empty((3,4))
 
@@ -162,6 +162,8 @@ for img in img_list:
 	if '.jpg' in img:
 		images = images + [img]
 i = 0		
+mesh = o3d.geometry.TriangleMesh.create_coordinate_frame()
+camera_orientation(mesh,R_t_0,i)
 
 apply_ba = False
 while(i < len(images) - 1):
@@ -198,7 +200,7 @@ while(i < len(images) - 1):
 	R_t_1[:3,:3] = np.matmul(R, R_t_0[:3,:3])
 	R_t_1[:3, 3] = R_t_0[:3, 3] + np.matmul(R_t_0[:3,:3],t.ravel())
 	
-	camera_orientation(mesh,R_t_1,i)
+	camera_orientation(mesh,R_t_1,i+1)
 	
 	P2 = np.matmul(K, R_t_1)
 	
