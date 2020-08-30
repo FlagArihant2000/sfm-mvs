@@ -7,7 +7,8 @@ import cv2
 import numpy as np
 import os
 from scipy.optimize import least_squares
-
+import copy
+import open3d as o3d
 
 def Triangulation(P1, P2, pts1, pts2, K):
 	
@@ -18,6 +19,17 @@ def Triangulation(P1, P2, pts1, pts2, K):
 	cloud = cloud / cloud[3]
 	
 	return points1, points2, cloud
+	
+
+def camera_orientation(mesh,R_T,i):
+	T = np.zeros((4,4))
+	T[:3,] = R_T
+	T[3,:] = np.array([0,0,0,1])
+	new_mesh = copy.deepcopy(mesh).transform(T)
+	new_mesh.scale(0.5, center=new_mesh.get_center())
+	o3d.io.write_triangle_mesh("mesh"+str(i)+'.ply', new_mesh)
+	
+	return 
 	
 def ReprojectionError(X, pts, Rt, K, homogenity):
 	total_error = 0
@@ -150,6 +162,8 @@ for img in img_list:
 	if '.jpg' in img:
 		images = images + [img]
 i = 0		
+mesh = o3d.geometry.TriangleMesh.create_coordinate_frame()
+camera_orientation(mesh,R_t_0,i)
 
 apply_ba = False
 while(i < len(images) - 1):
@@ -185,6 +199,8 @@ while(i < len(images) - 1):
 	
 	R_t_1[:3,:3] = np.matmul(R, R_t_0[:3,:3])
 	R_t_1[:3, 3] = R_t_0[:3, 3] + np.matmul(R_t_0[:3,:3],t.ravel())
+	
+	camera_orientation(mesh,R_t_1,i+1)
 	
 	P2 = np.matmul(K, R_t_1)
 	
