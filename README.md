@@ -6,6 +6,7 @@
 2. ```cd structure-from-motion```
 3. Run ```python3 sfm.py```.
 4. If executed successfully, open ```stereo.ply``` with meshlab, in order to see the sparse reconstruction. 
+5. To analyse the camera poses, click on ```import meshes``` on the top left and select ```mesh0.ply``` to ```mesh9.ply```.
 
 ## Pipeline
 1. Acquiring image pair at a time.
@@ -29,7 +30,7 @@ A sample image:
 
 The output is without bundle adjustment since it is extremely computationally expensive. Currently working on speeding up that process.
 
-![Image](result.png)
+![Image](resultpnp.png)
 
 ## TO DO
 
