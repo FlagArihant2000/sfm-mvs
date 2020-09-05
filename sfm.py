@@ -62,7 +62,10 @@ def ReprojectionError(X, pts, Rt, K, homogenity):
 	p, _ = cv2.projectPoints(X, r, t, K, distCoeffs = None)
 	p = p[:, 0, :]
 	p = np.float32(p)
-	total_error = cv2.norm(p, pts.T, cv2.NORM_L2)
+	if homogenity == 1:
+		total_error = cv2.norm(p, pts.T, cv2.NORM_L2)
+	else:
+		total_error = cv2.norm(p, pts, cv2.NORM_L2)
 	pts = pts.T
 	tot_error = total_error/len(p)
 	#print(p, pts.T)
@@ -209,7 +212,7 @@ while(i < len(images) - 1):
 	R_t_1[:3,:3] = np.matmul(R, R_t_0[:3,:3])
 	R_t_1[:3, 3] = R_t_0[:3, 3] + np.matmul(R_t_0[:3,:3],t.ravel())
 	
-	camera_orientation(mesh,R_t_1,i+1)
+	#camera_orientation(mesh,R_t_1,i+1)
 	
 	P2 = np.matmul(K, R_t_1)
 	
@@ -221,26 +224,24 @@ while(i < len(images) - 1):
 	error, points_3d = ReprojectionError(points_3d, pts1, R_t_1, K, homogenity = 1)
 	print("Reprojection Error: ",error)
 	
-	Rot, trans, pnew, Xnew = PnP(points_3d, pts1, K, np.zeros((5,1), dtype = np.float32))
-	pnew = pnew.T
+	Rot, trans, pts1, points_3d = PnP(points_3d, pts1, K, np.zeros((5,1), dtype = np.float32))
 	#print(Rot, trans, pnew.shape, Xnew.shape)
 	Rtnew = np.hstack((Rot, trans))
 	Pnew = np.matmul(K, Rtnew)
 	print(Pnew)
+	#pts1 = pts1.T
+	#print(pts1.shape, points_3d.shape)
 	
-	pts0, pts1, points_3d = Triangulation(Pref, Pnew, pts0, pts1, K, repeat = True)
-	#print(points_3d[:, 0, :])
-	#print(pts1_reg.shape, points_3d.shape)
-	
-	#x = np.concatenate((x, points_3d[0]))
-	#y = np.concatenate((y, points_3d[1]))
-	#z = np.concatenate((z, points_3d[2]))
+	#pts0, pts1, points_3d = Triangulation(Pref, Pnew, pts0, pts1, K, repeat = True)
+
+	error, points_3d = ReprojectionError(points_3d, pts1, Rtnew, K, homogenity = 0)
+	camera_orientation(mesh,Rtnew,i+1)
 	#print(points_3d.shape)
-	error, points_3d = ReprojectionError(points_3d, pts1, R_t_1, K, homogenity = 1)
-	
-	Xtot = np.vstack((Xtot, points_3d[:, 0, :]))
+	#Xtot = np.vstack((Xtot, points_3d[:, 0, :]))
+	Xtot = np.vstack((Xtot, points_3d))
 	pts1_reg = np.array(pts1, dtype = np.int32)
-	colors = np.array([img1[l[1],l[0]] for l in pts1_reg.T])
+	#colors = np.array([img1[l[1],l[0]] for l in pts1_reg.T])
+	colors = np.array([img1[l[1],l[0]] for l in pts1_reg])
 	colorstot = np.vstack((colorstot, colors))
 	if apply_ba == True:	
 		R_t_1, P2, points_3d = BundleAdjustment(points_3d, pts1, P2, R_t_1, K)
@@ -256,7 +257,7 @@ while(i < len(images) - 1):
 		break
 		
 cv2.destroyAllWindows()
-#print(Xtot.shape, colorstot.shape)
+print(Xtot.shape, colorstot.shape)
 print("Processing Point Cloud...")
 to_ply(Xtot, colorstot)
 print("Done!")
