@@ -32,7 +32,7 @@ def camera_orientation(mesh,R_T,i):
 	new_mesh = copy.deepcopy(mesh).transform(T)
 	#print(new_mesh)
 	#new_mesh.scale(0.5, center=new_mesh.get_center())
-	o3d.io.write_triangle_mesh("mesh"+str(i)+'.ply', new_mesh)
+	o3d.io.write_triangle_mesh("camerapose"+str(i)+'.ply', new_mesh)
 	
 	return
 	
@@ -135,7 +135,7 @@ def to_ply(point_cloud, colors):
 		property uchar red
 		end_header
 		'''
-	with open('stereo.ply', 'w') as f:
+	with open('sparse.ply', 'w') as f:
 		f.write(ply_header %dict(vert_num = len(verts)))
 		np.savetxt(f, verts, '%f %f %f %d %d %d')
 
@@ -176,6 +176,12 @@ i = 0
 mesh = o3d.geometry.TriangleMesh.create_coordinate_frame()
 
 camera_orientation(mesh,R_t_0,i)
+
+posefile = open('poses.txt','w')
+posefile.write("K = " + str(K.ravel()))
+posefile.write("\n")
+posefile.write(str(i) + " = " + str(R_t_0.ravel()))
+posefile.write("\n")
 
 apply_ba = False
 while(i < len(images) - 1):
@@ -228,14 +234,19 @@ while(i < len(images) - 1):
 	#print(Rot, trans, pnew.shape, Xnew.shape)
 	Rtnew = np.hstack((Rot, trans))
 	Pnew = np.matmul(K, Rtnew)
-	print(Pnew)
+	#print(Rtnew, R_t_1)
 	#pts1 = pts1.T
 	#print(pts1.shape, points_3d.shape)
 	
 	#pts0, pts1, points_3d = Triangulation(Pref, Pnew, pts0, pts1, K, repeat = True)
 
 	error, points_3d = ReprojectionError(points_3d, pts1, Rtnew, K, homogenity = 0)
-	camera_orientation(mesh,Rtnew,i+1)
+	
+	camera_orientation(mesh, Rtnew, i + 1)
+	
+	posefile.write(str(i + 1) + " = " + str(Rtnew.ravel()))
+	posefile.write("\n")
+	
 	#print(points_3d.shape)
 	#Xtot = np.vstack((Xtot, points_3d[:, 0, :]))
 	Xtot = np.vstack((Xtot, points_3d))
@@ -250,14 +261,16 @@ while(i < len(images) - 1):
 	
 	cv2.imshow('image1', img0)
 	cv2.imshow('image2', img1)
-	i = i + 1
 	R_t_0 = np.copy(R_t_1)
 	P1 = np.copy(P2)
+	i = i + 1
 	if cv2.waitKey(1) & 0xff == ord('q'):
 		break
 		
 cv2.destroyAllWindows()
-print(Xtot.shape, colorstot.shape)
+#print(Xtot.shape, colorstot.shape)
 print("Processing Point Cloud...")
 to_ply(Xtot, colorstot)
 print("Done!")
+
+posefile.close()
