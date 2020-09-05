@@ -1,5 +1,5 @@
 # Structure from Motion
-# Author: Arihant Gaur
+# Authors: Arihant Gaur and Saurabh Kemekar
 # Organization: IvLabs, VNIT
 
 
@@ -10,14 +10,18 @@ from scipy.optimize import least_squares
 import copy
 import open3d as o3d
 
-def Triangulation(P1, P2, pts1, pts2, K):
+def Triangulation(P1, P2, pts1, pts2, K, repeat):
 	
-	points1 = np.transpose(pts1)
-	points2 = np.transpose(pts2)
+	if not repeat:
+		points1 = np.transpose(pts1)
+		points2 = np.transpose(pts2)
+	else:
+		points1 = pts1
+		points2 = pts2
 	
 	cloud = cv2.triangulatePoints(P1, P2, points1, points2)
 	cloud = cloud / cloud[3]
-	
+
 	return points1, points2, cloud
 	
 
@@ -26,10 +30,24 @@ def camera_orientation(mesh,R_T,i):
 	T[:3,] = R_T
 	T[3,:] = np.array([0,0,0,1])
 	new_mesh = copy.deepcopy(mesh).transform(T)
-	new_mesh.scale(0.5, center=new_mesh.get_center())
+	#print(new_mesh)
+	#new_mesh.scale(0.5, center=new_mesh.get_center())
 	o3d.io.write_triangle_mesh("mesh"+str(i)+'.ply', new_mesh)
 	
-	return 
+	return
+	
+def PnP(X, p, K, d):
+	X = X[:, 0, :]
+	p = p.T
+	ret, rvecs, t, inliers = cv2.solvePnPRansac(X, p, K, d, cv2.SOLVEPNP_ITERATIVE)
+	
+	R, _ = cv2.Rodrigues(rvecs)
+	
+	if inliers is not None:
+		p = p[inliers[:,0]]
+		X = X[inliers[:,0]]
+	
+	return R, t, p, X
 	
 def ReprojectionError(X, pts, Rt, K, homogenity):
 	total_error = 0
@@ -46,17 +64,6 @@ def ReprojectionError(X, pts, Rt, K, homogenity):
 	p = np.float32(p)
 	total_error = cv2.norm(p, pts.T, cv2.NORM_L2)
 	pts = pts.T
-	
-	#for idx in range(len(p)):
-		#print(p[idx],pts[idx])
-	#	er = np.sqrt((p[idx][0] - pts[idx][0])**2 + (p[idx][1] - pts[idx][1])**2)
-	#	total_error = total_error + er
-	
-	
-	#print(p[0], pts.T[0])
-	
-	#tot_error = error ** 2
-	#tot_error = tot_error / len(X)
 	tot_error = total_error/len(p)
 	#print(p, pts.T)
 	
@@ -147,6 +154,7 @@ R_t_0 = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]])
 R_t_1 = np.empty((3,4))
 
 P1 = np.matmul(K, R_t_0)
+Pref = P1
 P2 = np.empty((3,4))
 
 
@@ -163,6 +171,7 @@ for img in img_list:
 		images = images + [img]
 i = 0		
 mesh = o3d.geometry.TriangleMesh.create_coordinate_frame()
+
 camera_orientation(mesh,R_t_0,i)
 
 apply_ba = False
@@ -204,18 +213,31 @@ while(i < len(images) - 1):
 	
 	P2 = np.matmul(K, R_t_1)
 	
-	pts0, pts1, points_3d = Triangulation(P1, P2, pts0, pts1, K)
+	pts0, pts1, points_3d = Triangulation(P1, P2, pts0, pts1, K, repeat = False)
+	
 	
 	#print(P1, P2)
 	
 	error, points_3d = ReprojectionError(points_3d, pts1, R_t_1, K, homogenity = 1)
 	print("Reprojection Error: ",error)
+	
+	Rot, trans, pnew, Xnew = PnP(points_3d, pts1, K, np.zeros((5,1), dtype = np.float32))
+	pnew = pnew.T
+	#print(Rot, trans, pnew.shape, Xnew.shape)
+	Rtnew = np.hstack((Rot, trans))
+	Pnew = np.matmul(K, Rtnew)
+	print(Pnew)
+	
+	pts0, pts1, points_3d = Triangulation(Pref, Pnew, pts0, pts1, K, repeat = True)
 	#print(points_3d[:, 0, :])
 	#print(pts1_reg.shape, points_3d.shape)
 	
 	#x = np.concatenate((x, points_3d[0]))
 	#y = np.concatenate((y, points_3d[1]))
 	#z = np.concatenate((z, points_3d[2]))
+	#print(points_3d.shape)
+	error, points_3d = ReprojectionError(points_3d, pts1, R_t_1, K, homogenity = 1)
+	
 	Xtot = np.vstack((Xtot, points_3d[:, 0, :]))
 	pts1_reg = np.array(pts1, dtype = np.int32)
 	colors = np.array([img1[l[1],l[0]] for l in pts1_reg.T])
