@@ -35,4 +35,4 @@ The output is without bundle adjustment since it is extremely computationally ex
 ## TO DO
 
 1. Speed up bundle adjustment.
-2. Sparse to Dense using MVS. (Camera Poses Obtained from SfM)
+2. Sparse to Dense using MVS. (Camera Poses Obtained from SfM) (```mvs.py```)
