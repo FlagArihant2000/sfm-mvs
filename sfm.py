@@ -178,9 +178,9 @@ mesh = o3d.geometry.TriangleMesh.create_coordinate_frame()
 camera_orientation(mesh,R_t_0,i)
 
 posefile = open('poses.txt','w')
-posefile.write("K = " + str(K.ravel()))
+posefile.write("K = " + str(K.flatten()).replace('\n',''))
 posefile.write("\n")
-posefile.write(str(i) + " = " + str(R_t_0.ravel()))
+posefile.write(str(i) + " = " + str(R_t_0.flatten()).replace('\n',''))
 posefile.write("\n")
 
 apply_ba = False
@@ -196,7 +196,6 @@ while(i < len(images) - 1):
 	sift = cv2.xfeatures2d.SIFT_create()
 	kp0, des0 = sift.detectAndCompute(img0gray, None)
 	kp1, des1 = sift.detectAndCompute(img1gray, None)
-	
 	bf = cv2.BFMatcher()
 	matches = bf.knnMatch(des0, des1, k = 2)
 	
@@ -244,9 +243,9 @@ while(i < len(images) - 1):
 	
 	camera_orientation(mesh, Rtnew, i + 1)
 	
-	posefile.write(str(i + 1) + " = " + str(Rtnew.ravel()))
+	posefile.write(str(i + 1) + " = " + str(Rtnew.flatten()).replace('\n',''))
 	posefile.write("\n")
-	
+
 	#print(points_3d.shape)
 	#Xtot = np.vstack((Xtot, points_3d[:, 0, :]))
 	Xtot = np.vstack((Xtot, points_3d))
