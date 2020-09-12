@@ -1,5 +1,12 @@
+# MULTIVIEW STEREO
+# AUTHORS: ARIHANT GAUR AND SAURABH KEMEKAR
+# ORGANIZATION: IvLabs, VNIT
+# Current Under Progress
+# TODO Obtain non - occluding points and add patches.
+
 import cv2
 import numpy as np
+import open3d as o3d
 import os
 
 def stringextract(m, i = 1):
@@ -25,6 +32,7 @@ def stringextract(m, i = 1):
 	else:
 		arr = arr.reshape((3,4))
 	return arr
+	
 			
 
 
@@ -57,7 +65,7 @@ Xtot = np.zeros((1,3))
 colorstot = np.zeros((1,3))
 
 
-img_dir = '/home/arihant/structure-from-motion/'
+img_dir = '/home/arihant/sfm-mvs/'
 
 img_list = sorted(os.listdir(img_dir))
 images = []
@@ -68,7 +76,12 @@ i = 0
 #mesh = o3d.geometry.TriangleMesh.create_coordinate_frame()
 
 #camera_orientation(mesh,R_t_0,i)
+pcd_load = o3d.io.read_point_cloud('sparse.ply')
+xyz_load = np.asarray(pcd_load.points)
+xyz_color = np.asarray(pcd_load.colors)
 
+xyz_h = cv2.convertPointsToHomogeneous(xyz_load)
+xyz_h = xyz_h[:, 0, :]
 
 while(i < len(images) - 1):
 	img0 = cv2.pyrDown(cv2.imread(img_dir + images[i]))
@@ -80,7 +93,12 @@ while(i < len(images) - 1):
 	t = Rt[:,3]
 	t = np.array([[t[0]], [t[1]], [t[2]]])
 	
-		
+	#P = np.matmul(K, Rt)
+	#print(P)
+	C = -np.matmul(np.linalg.inv(R),t)
+	#print(C)
+	
+	
 	
 	#print(R,t)
 
