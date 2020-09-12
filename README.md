@@ -1,4 +1,10 @@
-# Structure from Motion (SFM)
+# Stereo 3D Reconstruction
+
+The README is divided into two parts,
+1. Structure from Motion (For camera parameters and sparse reconstruction)
+2. Multiview Stereo (For dense reconstruction)
+
+# Structure from Motion (SfM)
 
 ## Steps to Execute
 
@@ -36,3 +42,19 @@ The output is without bundle adjustment since it is extremely computationally ex
 
 1. Speed up bundle adjustment.
 2. Sparse to Dense using MVS. (Camera Poses Obtained from SfM) (```mvs.py```)
+
+# Multiview Stereo (MVS)
+
+While there are several methods available in the literature for stereo, we choose to work on patch based reconstruction.
+
+## Steps to Execute (Under Development)
+
+1. Execute the SfM pipeline.
+2. Run ```python3 mvs.py```.
+
+
+### Team Members
+
+1. Arihant Gaur
+2. Saurabh Kemekar
+
