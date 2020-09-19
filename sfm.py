@@ -121,10 +121,16 @@ def BundleAdjustment(X, p, P, Rt, K):
 	
 	return Rt, P, points_3d
 	
-def ZNCC(img0, img1, pts0, pts1, shapes):
+def ZNCC(img1, img2, patch1, patch2):
+	color1 = np.array([img1[l[1],l[0]] for l in patch1.T])
+	color2 = np.array([img2[l[1],l[0]] for l in patch2.T])
+	
+def make_patch(img0, img1, pts0, pts1, shapes):
 	width, height = shapes
 	pts0 = np.array(pts0, dtype = np.int32)
 	pts1 = np.array(pts1, dtype = np.int32)
+	
+
 	i = 0
 	nsize = 11
 	while(i < len(pts0)):
@@ -133,22 +139,38 @@ def ZNCC(img0, img1, pts0, pts1, shapes):
 		p1 = pts1[i]
 		dec0 = p0 - patch_ht
 		dec1 = p1 - patch_ht
+		#print(nsize)
 		patch00 = np.linspace(dec0[0],dec0[0] + nsize - 1, nsize)
 		patch01 = np.linspace(dec0[1],dec0[1] + nsize - 1, nsize)
 		patch10 = np.linspace(dec1[0],dec1[0] + nsize - 1, nsize)
 		patch11 = np.linspace(dec1[0],dec1[0] + nsize - 1, nsize)
-		if np.count_nonzero(patch00 < 0) == 0 and np.count_nonzero(patch01 < 0) == 0 and np.count_nonzero(patch10 < 0) == 0 and np.count_nonzero(patch11 < 0) == 0:
+		
+		count00 = np.count_nonzero(patch00 < 0) + np.count_nonzero(patch00 > height)
+		count01 = np.count_nonzero(patch01 < 0) + np.count_nonzero(patch01 > width)
+		count10 = np.count_nonzero(patch10 < 0) + np.count_nonzero(patch10 > height)
+		count11 = np.count_nonzero(patch11 < 0) + np.count_nonzero(patch11 > width)
+		#print(i)
+		if count00 == count01 == count10 == count11 == 0:
 			i = i + 1
 			nsize = 11
 		else:
 			nsize = nsize - 2
+			#print(patch00, patch01)
+			if nsize == -1:
+				nsize = 11
+				i = i + 1
 			continue
-		#print(len(patch00), len(patch01), len(patch10), len(patch11))
-		#patch0 = np.column_stack((patch00, patch01))
-		#print(patch0)
+
 		patch0 = np.array(np.meshgrid(patch00, patch01)).T.reshape(-1,2)
 		patch1 = np.array(np.meshgrid(patch10, patch11)).T.reshape(-1,2)
-		print(patch0.shape,patch1.shape)
+		patch0 = np.array(patch0, dtype = np.int32)
+		patch1 = np.array(patch1, dtype = np.int32)
+		#print(patch0)
+		if len(patch0) != 1:
+			#print(patch0)
+			corr = ZNCC(img0, img1, patch0, patch1)
+		else:
+			pass
 		
 	
 
@@ -258,7 +280,7 @@ while(i < len(images) - 1):
 	
 	P2 = np.matmul(K, R_t_1)
 	if densify:
-		correlation = ZNCC(img0, img1, pts0, pts1, img0gray.shape)
+		correlation = make_patch(img0, img1, pts0, pts1, img0gray.shape)
 	
 	pts0, pts1, points_3d = Triangulation(P1, P2, pts0, pts1, K, repeat = False)
 	
@@ -281,7 +303,7 @@ while(i < len(images) - 1):
 	error, points_3d = ReprojectionError(points_3d, pts1, Rtnew, K, homogenity = 0)
 	
 	camera_orientation(mesh, Rtnew, i + 1)
-	print(pts0.shape, pts1.shape)
+	#print(pts0.shape, pts1.shape)
 	
 	
 	posefile.write(str(i + 1) + " = " + str(Rtnew.flatten()).replace('\n',''))
