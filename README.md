@@ -11,7 +11,7 @@ The README is divided into two parts,
 1. Clone the repository as ```git clone https://github.com/FlagArihant2000/structure-from-motion```
 2. ```cd structure-from-motion```
 3. Run ```python3 sfm.py```.
-4. If executed successfully, open ```stereo.ply``` with meshlab, in order to see the sparse reconstruction. 
+4. If executed successfully, open ```sparse.ply``` (or ```dense.ply``` in case of dense reconstruction) with meshlab, in order to see the sparse reconstruction. 
 5. To analyse the camera poses, click on ```import meshes``` on the top left and select ```camerapose0.ply``` to ```camerapose9.ply```.
 
 ## Pipeline
@@ -23,7 +23,7 @@ The README is divided into two parts,
 6. Projection matrix for each camera location is calculated, and triangulation of point correspondences are calculated.
 7. The quality of triangulation is done using re-projection error. The triangulated points are re - mapped onto the image plane and the deviation between the matching points is calculated. (Note that in the code, rotation matrix is converted into vector using Rodrigues equation).
 8. An optional step is added, that is, minimising of re-projection error using bundle adjustment. The triangulated points and projection matrices are stacked and converted to feature vector. Then, re-projection error is considered as cost function and optimisation is done using non - linear least squares method (Levenberg Marquardt method).
-9. The 3D points are converted into point cloud format, along with the corresponding pixel colour at that location, which is then stored in ```stereo.ply```.
+9. The 3D points are converted into point cloud format, along with the corresponding pixel colour at that location, which is then stored in ```sparse.ply```.
 
 ## Dataset
 
@@ -38,20 +38,29 @@ The output is without bundle adjustment since it is extremely computationally ex
 
 ![Image](resultpnp.png)
 
-## TO DO
-
-1. Speed up bundle adjustment.
-2. Sparse to Dense using MVS. (Camera Poses Obtained from SfM) (```mvs.py```)
-
 # Multiview Stereo (MVS)
 
 While there are several methods available in the literature for stereo, we choose to work on patch based reconstruction.
 
-## Steps to Execute (Under Development)
+Execute: Under ```sfm.py```, change ```densify = False``` to ```True```.
 
-1. Execute the SfM pipeline.
-2. Run ```python3 mvs.py```.
+## Pipeline (Under Development)
+1. Acquire feature matches from SfM pipeline.
+4. Extract ```11x11``` neighbourhood around feature point correspondences.
+5. Score patch match using zero - mean normalised cross - correlation (ZNCC).
 
+![](https://wikimedia.org/api/rest_v1/media/math/render/svg/6bd813cba989aead180c50ddb1c1a64c369bf45c)
+
+4. Filter the patches, where the correlation is less than a standard deviation from mean.
+
+5. Continue the SfM pipeline.
+6. Output will be stored in ```dense.ply```.
+
+## TO DO
+
+1. Speed up bundle adjustment.
+2. Outlier rejection in ```5x5``` from each patch.
+3. Add new feature constraints.
 
 ### Team Members
 

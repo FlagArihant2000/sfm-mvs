@@ -64,6 +64,7 @@ def ReprojectionError(X, pts, Rt, K, homogenity):
 	p, _ = cv2.projectPoints(X, r, t, K, distCoeffs = None)
 	p = p[:, 0, :]
 	p = np.float32(p)
+	pts = np.float32(pts)
 	if homogenity == 1:
 		total_error = cv2.norm(p, pts.T, cv2.NORM_L2)
 	else:
@@ -122,59 +123,81 @@ def BundleAdjustment(X, p, P, Rt, K):
 	return Rt, P, points_3d
 	
 def ZNCC(img1, img2, patch1, patch2):
-	color1 = np.array([img1[l[1],l[0]] for l in patch1.T])
-	color2 = np.array([img2[l[1],l[0]] for l in patch2.T])
+	color1 = np.array([img1[l[0],l[1]] for l in patch1])
+	color2 = np.array([img2[ll[0],ll[1]] for ll in patch2])
+	color1 = np.array(color1, dtype = np.float32)
+	color2 = np.array(color2, dtype = np.float32)
+
+	u1 = np.mean(color1)
+	u2 = np.mean(color2)
+	sig1 = np.std(color1)
+	sig2 = np.std(color2)
+	
+	nor1 = (color1 - u1)/sig1
+	nor2 = (color2 - u2)/sig2
+	
+	nor = nor1 * nor2
+	
+	zncc = np.sum(nor)/len(color1)
+	
+	return zncc
 	
 def make_patch(img0, img1, pts0, pts1, shapes):
-	width, height = shapes
+	width, height = shapes # 1024, 1536
 	pts0 = np.array(pts0, dtype = np.int32)
 	pts1 = np.array(pts1, dtype = np.int32)
+	ZNCC_val = []
+	ZNCC_thresh = 2.8
+	dense_pts0 = np.zeros((1,2))
+	dense_pts1 = np.zeros((1,2))
 	
-
 	i = 0
 	nsize = 11
+
 	while(i < len(pts0)):
 		patch_ht = (nsize - 1)/2
 		p0 = pts0[i]
 		p1 = pts1[i]
 		dec0 = p0 - patch_ht
 		dec1 = p1 - patch_ht
-		#print(nsize)
-		patch00 = np.linspace(dec0[0],dec0[0] + nsize - 1, nsize)
-		patch01 = np.linspace(dec0[1],dec0[1] + nsize - 1, nsize)
-		patch10 = np.linspace(dec1[0],dec1[0] + nsize - 1, nsize)
+
+		patch00 = np.linspace(dec0[1],dec0[1] + nsize - 1, nsize)
+		patch01 = np.linspace(dec0[0],dec0[0] + nsize - 1, nsize)
+		patch10 = np.linspace(dec1[1],dec1[1] + nsize - 1, nsize)
 		patch11 = np.linspace(dec1[0],dec1[0] + nsize - 1, nsize)
 		
-		count00 = np.count_nonzero(patch00 < 0) + np.count_nonzero(patch00 > height)
-		count01 = np.count_nonzero(patch01 < 0) + np.count_nonzero(patch01 > width)
-		count10 = np.count_nonzero(patch10 < 0) + np.count_nonzero(patch10 > height)
-		count11 = np.count_nonzero(patch11 < 0) + np.count_nonzero(patch11 > width)
-		#print(i)
+		count00 = np.count_nonzero(patch00 < 0) + np.count_nonzero(patch00 > width)
+		count01 = np.count_nonzero(patch01 < 0) + np.count_nonzero(patch01 > height)
+		count10 = np.count_nonzero(patch10 < 0) + np.count_nonzero(patch10 > width)
+		count11 = np.count_nonzero(patch11 < 0) + np.count_nonzero(patch11 > height)
+
 		if count00 == count01 == count10 == count11 == 0:
+			delta = 0
 			i = i + 1
 			nsize = 11
 		else:
 			nsize = nsize - 2
-			#print(patch00, patch01)
-			if nsize == -1:
-				nsize = 11
-				i = i + 1
 			continue
 
 		patch0 = np.array(np.meshgrid(patch00, patch01)).T.reshape(-1,2)
 		patch1 = np.array(np.meshgrid(patch10, patch11)).T.reshape(-1,2)
 		patch0 = np.array(patch0, dtype = np.int32)
 		patch1 = np.array(patch1, dtype = np.int32)
-		#print(patch0)
-		if len(patch0) != 1:
-			#print(patch0)
-			corr = ZNCC(img0, img1, patch0, patch1)
-		else:
-			pass
 		
+		corr = ZNCC(img0, img1, patch0, patch1)
+		if corr > ZNCC_thresh:
+			dense_pts0 = np.vstack((dense_pts0, patch0))
+			dense_pts1 = np.vstack((dense_pts1, patch1))
+		#ZNCC_val = ZNCC_val + [corr]
+	
+	#ZNCC_val = np.array(ZNCC_val, dtype = np.float32)
+	#print(np.max(ZNCC_val), np.min(ZNCC_val), np.mean(ZNCC_val), np.std(ZNCC_val))
+	# Setting the threshold at \mu - \sigma
+	print(dense_pts0.shape, dense_pts1.shape)
+	return dense_pts0, dense_pts1
 	
 
-def to_ply(point_cloud, colors):
+def to_ply(point_cloud, colors, densify):
 	out_points = point_cloud.reshape(-1,3)
 	out_colors = colors.reshape(-1,3)
 	verts = np.hstack([out_points, out_colors])
@@ -190,9 +213,14 @@ def to_ply(point_cloud, colors):
 		property uchar red
 		end_header
 		'''
-	with open('sparse.ply', 'w') as f:
-		f.write(ply_header %dict(vert_num = len(verts)))
-		np.savetxt(f, verts, '%f %f %f %d %d %d')
+	if not densify:
+		with open('sparse.ply', 'w') as f:
+			f.write(ply_header %dict(vert_num = len(verts)))
+			np.savetxt(f, verts, '%f %f %f %d %d %d')
+	else:
+		with open('dense.ply', 'w') as f:
+			f.write(ply_header %dict(vert_num = len(verts)))
+			np.savetxt(f, verts, '%f %f %f %d %d %d')
 		
 
 
@@ -277,13 +305,13 @@ while(i < len(images) - 1):
 	R_t_1[:3, 3] = R_t_0[:3, 3] + np.matmul(R_t_0[:3,:3],t.ravel())
 	
 	#camera_orientation(mesh,R_t_1,i+1)
-	
+
 	P2 = np.matmul(K, R_t_1)
 	if densify:
-		correlation = make_patch(img0, img1, pts0, pts1, img0gray.shape)
-	
+		pts0, pts1 = make_patch(img0, img1, pts0, pts1, img0gray.shape)
+		
 	pts0, pts1, points_3d = Triangulation(P1, P2, pts0, pts1, K, repeat = False)
-	
+	print(points_3d.shape)
 	
 	#print(P1, P2)
 	
@@ -314,7 +342,10 @@ while(i < len(images) - 1):
 	Xtot = np.vstack((Xtot, points_3d))
 	pts1_reg = np.array(pts1, dtype = np.int32)
 	#colors = np.array([img1[l[1],l[0]] for l in pts1_reg.T])
-	colors = np.array([img1[l[1],l[0]] for l in pts1_reg])
+	if not densify:
+		colors = np.array([img1[l[1],l[0]] for l in pts1_reg])
+	else:
+		colors = np.array([img1[l[0],l[1]] for l in pts1_reg])
 	colorstot = np.vstack((colorstot, colors))
 	if apply_ba:	
 		R_t_1, P2, points_3d = BundleAdjustment(points_3d, pts1, P2, R_t_1, K)
@@ -332,7 +363,7 @@ while(i < len(images) - 1):
 cv2.destroyAllWindows()
 #print(Xtot.shape, colorstot.shape)
 print("Processing Point Cloud...")
-to_ply(Xtot, colorstot)
+to_ply(Xtot, colorstot, densify)
 print("Done!")
 
 posefile.close()
