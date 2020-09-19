@@ -128,6 +128,15 @@ def ZNCC(img0, img1, pts0, pts1, shapes):
 	pts1 = np.array(pts1, dtype = np.int32)
 	patch_ht = (nsize - 1)/2
 	
+	i = 0
+	#while(i < len(pts0)):
+	#	p0 = pts0[i]
+	#	p1 = pts1[i]
+	#	dec0 = p0 - patch_ht
+	#	dec1 = p0 - patch_ht
+	#	if dec0 > 0 and dec1 > 0:
+			
+	
 	
 
 def to_ply(point_cloud, colors):
@@ -235,6 +244,8 @@ while(i < len(images) - 1):
 	#camera_orientation(mesh,R_t_1,i+1)
 	
 	P2 = np.matmul(K, R_t_1)
+	if densify:
+		correlation = ZNCC(img0, img1, pts0, pts1, img0gray.shape)
 	
 	pts0, pts1, points_3d = Triangulation(P1, P2, pts0, pts1, K, repeat = False)
 	
@@ -244,7 +255,7 @@ while(i < len(images) - 1):
 	error, points_3d = ReprojectionError(points_3d, pts1, R_t_1, K, homogenity = 1)
 	print("Reprojection Error: ",error)
 	
-	Rot, trans, pts1, points_3d, pts0 = PnP(points_3d, pts1, K, np.zeros((5,1), dtype = np.float32), pts0)
+	Rot, trans, pts1, points_3d, pts0t = PnP(points_3d, pts1, K, np.zeros((5,1), dtype = np.float32), pts0)
 	#print(Rot, trans, pnew.shape, Xnew.shape)
 	Rtnew = np.hstack((Rot, trans))
 	Pnew = np.matmul(K, Rtnew)
@@ -259,8 +270,6 @@ while(i < len(images) - 1):
 	camera_orientation(mesh, Rtnew, i + 1)
 	print(pts0.shape, pts1.shape)
 	
-	if densify:
-		correlation = ZNCC(img0, img1, pts0, pts1, img0gray.shape)
 	
 	posefile.write(str(i + 1) + " = " + str(Rtnew.flatten()).replace('\n',''))
 	posefile.write("\n")
