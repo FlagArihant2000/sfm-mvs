@@ -36,9 +36,10 @@ def camera_orientation(mesh,R_T,i):
 	
 	return
 	
-def PnP(X, p, K, d):
+def PnP(X, p, K, d, p_0):
 	X = X[:, 0, :]
 	p = p.T
+	p_0 = p_0.T
 	ret, rvecs, t, inliers = cv2.solvePnPRansac(X, p, K, d, cv2.SOLVEPNP_ITERATIVE)
 	
 	R, _ = cv2.Rodrigues(rvecs)
@@ -46,8 +47,9 @@ def PnP(X, p, K, d):
 	if inliers is not None:
 		p = p[inliers[:,0]]
 		X = X[inliers[:,0]]
+		p_0 = p_0[inliers[:,0]]
 	
-	return R, t, p, X
+	return R, t, p, X, p_0
 	
 def ReprojectionError(X, pts, Rt, K, homogenity):
 	total_error = 0
@@ -118,6 +120,15 @@ def BundleAdjustment(X, p, P, Rt, K):
 	P = np.matmul(K,Rt)
 	
 	return Rt, P, points_3d
+	
+def ZNCC(img0, img1, pts0, pts1, shapes):
+	nsize = 11
+	width, height = shapes
+	pts0 = np.array(pts0, dtype = np.int32)
+	pts1 = np.array(pts1, dtype = np.int32)
+	patch_ht = (nsize - 1)/2
+	
+	
 
 def to_ply(point_cloud, colors):
 	out_points = point_cloud.reshape(-1,3)
@@ -138,6 +149,7 @@ def to_ply(point_cloud, colors):
 	with open('sparse.ply', 'w') as f:
 		f.write(ply_header %dict(vert_num = len(verts)))
 		np.savetxt(f, verts, '%f %f %f %d %d %d')
+		
 
 
 cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
@@ -165,7 +177,7 @@ Xtot = np.zeros((1,3))
 colorstot = np.zeros((1,3))
 
 #img_dir = '/home/arihant/structure-from-motion/'
-img_dir = '/home/arihant/structure-from-motion/'
+img_dir = '/home/arihant/sfm-mvs/'
 
 img_list = sorted(os.listdir(img_dir))
 images = []
@@ -182,8 +194,11 @@ posefile.write("K = " + str(K.flatten()).replace('\n',''))
 posefile.write("\n")
 posefile.write(str(i) + " = " + str(R_t_0.flatten()).replace('\n',''))
 posefile.write("\n")
+fpfile = open('features.txt','w')
 
 apply_ba = False
+densify = True # Application of Patch based MVS to make a denser point cloud
+
 while(i < len(images) - 1):
 	img0 = cv2.pyrDown(cv2.imread(img_dir + images[i]))
 	img1 = cv2.pyrDown(cv2.imread(img_dir + images[i + 1]))
@@ -229,7 +244,7 @@ while(i < len(images) - 1):
 	error, points_3d = ReprojectionError(points_3d, pts1, R_t_1, K, homogenity = 1)
 	print("Reprojection Error: ",error)
 	
-	Rot, trans, pts1, points_3d = PnP(points_3d, pts1, K, np.zeros((5,1), dtype = np.float32))
+	Rot, trans, pts1, points_3d, pts0 = PnP(points_3d, pts1, K, np.zeros((5,1), dtype = np.float32), pts0)
 	#print(Rot, trans, pnew.shape, Xnew.shape)
 	Rtnew = np.hstack((Rot, trans))
 	Pnew = np.matmul(K, Rtnew)
@@ -242,6 +257,10 @@ while(i < len(images) - 1):
 	error, points_3d = ReprojectionError(points_3d, pts1, Rtnew, K, homogenity = 0)
 	
 	camera_orientation(mesh, Rtnew, i + 1)
+	print(pts0.shape, pts1.shape)
+	
+	if densify:
+		correlation = ZNCC(img0, img1, pts0, pts1, img0gray.shape)
 	
 	posefile.write(str(i + 1) + " = " + str(Rtnew.flatten()).replace('\n',''))
 	posefile.write("\n")
@@ -253,7 +272,7 @@ while(i < len(images) - 1):
 	#colors = np.array([img1[l[1],l[0]] for l in pts1_reg.T])
 	colors = np.array([img1[l[1],l[0]] for l in pts1_reg])
 	colorstot = np.vstack((colorstot, colors))
-	if apply_ba == True:	
+	if apply_ba:	
 		R_t_1, P2, points_3d = BundleAdjustment(points_3d, pts1, P2, R_t_1, K)
 		error, points_3d = ReprojectionError(points_3d, pts1, R_t_1, K, homogenity = 0)
 		print("Minimized Reprojection Error: ",error)
