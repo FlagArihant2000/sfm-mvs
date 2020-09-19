@@ -9,58 +9,59 @@ import os
 from scipy.optimize import least_squares
 import copy
 import open3d as o3d
+from tqdm import tqdm
 
 def Triangulation(P1, P2, pts1, pts2, K, repeat):
-	
+
 	if not repeat:
 		points1 = np.transpose(pts1)
 		points2 = np.transpose(pts2)
 	else:
 		points1 = pts1
 		points2 = pts2
-	
+
 	cloud = cv2.triangulatePoints(P1, P2, points1, points2)
 	cloud = cloud / cloud[3]
 
 	return points1, points2, cloud
-	
 
-def camera_orientation(mesh,R_T,i):
+
+def camera_orientation(path,mesh,R_T,i):
 	T = np.zeros((4,4))
 	T[:3,] = R_T
 	T[3,:] = np.array([0,0,0,1])
 	new_mesh = copy.deepcopy(mesh).transform(T)
 	#print(new_mesh)
 	#new_mesh.scale(0.5, center=new_mesh.get_center())
-	o3d.io.write_triangle_mesh("camerapose"+str(i)+'.ply', new_mesh)
-	
+	o3d.io.write_triangle_mesh(path+"/Point_Cloud/camerapose"+str(i)+'.ply', new_mesh)
+
 	return
-	
+
 def PnP(X, p, K, d, p_0):
 	X = X[:, 0, :]
 	p = p.T
 	p_0 = p_0.T
 	ret, rvecs, t, inliers = cv2.solvePnPRansac(X, p, K, d, cv2.SOLVEPNP_ITERATIVE)
-	
+
 	R, _ = cv2.Rodrigues(rvecs)
-	
+
 	if inliers is not None:
 		p = p[inliers[:,0]]
 		X = X[inliers[:,0]]
 		p_0 = p_0[inliers[:,0]]
-	
+
 	return R, t, p, X, p_0
-	
+
 def ReprojectionError(X, pts, Rt, K, homogenity):
 	total_error = 0
 	R = Rt[:3,:3]
 	t = Rt[:3,3]
-	
+
 	r, _ = cv2.Rodrigues(R)
 	if homogenity == 1:
 		X = cv2.convertPointsFromHomogeneous(X.T)
-	
-	
+
+
 	p, _ = cv2.projectPoints(X, r, t, K, distCoeffs = None)
 	p = p[:, 0, :]
 	p = np.float32(p)
@@ -72,10 +73,10 @@ def ReprojectionError(X, pts, Rt, K, homogenity):
 	pts = pts.T
 	tot_error = total_error/len(p)
 	#print(p, pts.T)
-	
+
 	return tot_error, X
-	
-	
+
+
 def OptimReprojectionError(X_locs, p, r, t, K):
 	total_error = 0
 	p = p.T
@@ -95,9 +96,9 @@ def OptimReprojectionError(X_locs, p, r, t, K):
 		er = (img_pt - reprojected_pt)**2
 		error.append(er)
 
-	
+
 	return np.array(error).ravel()/num_pts
-	
+
 def BundleAdjustment(X, p, P, Rt, K):
 	num_points = len(p.T)
 	R = Rt[:3,:3]
@@ -119,9 +120,9 @@ def BundleAdjustment(X, p, P, Rt, K):
 	#print(R,t)
 	Rt = np.hstack((R,t))
 	P = np.matmul(K,Rt)
-	
+
 	return Rt, P, points_3d
-	
+
 def ZNCC(img1, img2, patch1, patch2):
 	color1 = np.array([img1[l[0],l[1]] for l in patch1])
 	color2 = np.array([img2[ll[0],ll[1]] for ll in patch2])
@@ -132,16 +133,16 @@ def ZNCC(img1, img2, patch1, patch2):
 	u2 = np.mean(color2)
 	sig1 = np.std(color1)
 	sig2 = np.std(color2)
-	
+
 	nor1 = (color1 - u1)/sig1
 	nor2 = (color2 - u2)/sig2
-	
+
 	nor = nor1 * nor2
-	
+
 	zncc = np.sum(nor)/len(color1)
-	
+
 	return zncc
-	
+
 def make_patch(img0, img1, pts0, pts1, shapes):
 	width, height = shapes # 1024, 1536
 	pts0 = np.array(pts0, dtype = np.int32)
@@ -150,7 +151,7 @@ def make_patch(img0, img1, pts0, pts1, shapes):
 	ZNCC_thresh = 2.8
 	dense_pts0 = np.zeros((1,2))
 	dense_pts1 = np.zeros((1,2))
-	
+
 	i = 0
 	nsize = 11
 
@@ -165,7 +166,7 @@ def make_patch(img0, img1, pts0, pts1, shapes):
 		patch01 = np.linspace(dec0[0],dec0[0] + nsize - 1, nsize)
 		patch10 = np.linspace(dec1[1],dec1[1] + nsize - 1, nsize)
 		patch11 = np.linspace(dec1[0],dec1[0] + nsize - 1, nsize)
-		
+
 		count00 = np.count_nonzero(patch00 < 0) + np.count_nonzero(patch00 > width)
 		count01 = np.count_nonzero(patch01 < 0) + np.count_nonzero(patch01 > height)
 		count10 = np.count_nonzero(patch10 < 0) + np.count_nonzero(patch10 > width)
@@ -183,21 +184,21 @@ def make_patch(img0, img1, pts0, pts1, shapes):
 		patch1 = np.array(np.meshgrid(patch10, patch11)).T.reshape(-1,2)
 		patch0 = np.array(patch0, dtype = np.int32)
 		patch1 = np.array(patch1, dtype = np.int32)
-		
+
 		corr = ZNCC(img0, img1, patch0, patch1)
 		if corr > ZNCC_thresh:
 			dense_pts0 = np.vstack((dense_pts0, patch0))
 			dense_pts1 = np.vstack((dense_pts1, patch1))
 		#ZNCC_val = ZNCC_val + [corr]
-	
+
 	#ZNCC_val = np.array(ZNCC_val, dtype = np.float32)
 	#print(np.max(ZNCC_val), np.min(ZNCC_val), np.mean(ZNCC_val), np.std(ZNCC_val))
 	# Setting the threshold at \mu - \sigma
-	print(dense_pts0.shape, dense_pts1.shape)
+	#print(dense_pts0.shape, dense_pts1.shape)
 	return dense_pts0, dense_pts1
-	
 
-def to_ply(point_cloud, colors, densify):
+
+def to_ply(path,point_cloud, colors, densify):
 	out_points = point_cloud.reshape(-1,3)
 	out_colors = colors.reshape(-1,3)
 	verts = np.hstack([out_points, out_colors])
@@ -214,14 +215,14 @@ def to_ply(point_cloud, colors, densify):
 		end_header
 		'''
 	if not densify:
-		with open('sparse.ply', 'w') as f:
+		with open(path+'/Point_Cloud/sparse.ply', 'w') as f:
 			f.write(ply_header %dict(vert_num = len(verts)))
 			np.savetxt(f, verts, '%f %f %f %d %d %d')
 	else:
-		with open('dense.ply', 'w') as f:
+		with open(path+'/Point_Cloud/dense.ply', 'w') as f:
 			f.write(ply_header %dict(vert_num = len(verts)))
 			np.savetxt(f, verts, '%f %f %f %d %d %d')
-		
+
 
 
 cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
@@ -248,76 +249,77 @@ P2 = np.empty((3,4))
 Xtot = np.zeros((1,3))
 colorstot = np.zeros((1,3))
 
-#img_dir = '/home/arihant/structure-from-motion/'
-img_dir = '/home/arihant/sfm-mvs/'
+path = os.getcwd()
+img_dir = path + '/Dataset'
 
 img_list = sorted(os.listdir(img_dir))
 images = []
 for img in img_list:
 	if '.jpg' in img:
 		images = images + [img]
-i = 0		
+i = 0
 mesh = o3d.geometry.TriangleMesh.create_coordinate_frame()
 
-camera_orientation(mesh,R_t_0,i)
+camera_orientation(path,mesh,R_t_0,i)
 
-posefile = open('poses.txt','w')
+posefile = open(img_dir+'/poses.txt','w')
 posefile.write("K = " + str(K.flatten()).replace('\n',''))
 posefile.write("\n")
 posefile.write(str(i) + " = " + str(R_t_0.flatten()).replace('\n',''))
 posefile.write("\n")
-fpfile = open('features.txt','w')
+fpfile = open(img_dir+'/features.txt','w')
 
 apply_ba = False
 densify = True # Application of Patch based MVS to make a denser point cloud
 
-while(i < len(images) - 1):
-	img0 = cv2.pyrDown(cv2.imread(img_dir + images[i]))
-	img1 = cv2.pyrDown(cv2.imread(img_dir + images[i + 1]))
+for i in tqdm(range(len(images)-1)):
+	print(img_dir +'/'+ images[i])
+	img0 = cv2.pyrDown(cv2.imread(img_dir +'/'+ images[i]))
+	img1 = cv2.pyrDown(cv2.imread(img_dir +'/'+ images[i + 1]))
 	#img0 = cv2.imread(img_dir + images[i])
 	#img1 = cv2.imread(img_dir + images[i + 1])
-	
+
 	img0gray = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
 	img1gray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-	
+
 	sift = cv2.xfeatures2d.SIFT_create()
 	kp0, des0 = sift.detectAndCompute(img0gray, None)
 	kp1, des1 = sift.detectAndCompute(img1gray, None)
 	bf = cv2.BFMatcher()
 	matches = bf.knnMatch(des0, des1, k = 2)
-	
+
 	good = []
 	for m,n in matches:
 		if m.distance < 0.70 * n.distance:
 			good.append(m)
-			
+
 	pts0 = np.float32([kp0[m.queryIdx].pt for m in good])
 	pts1 = np.float32([kp1[m.trainIdx].pt for m in good])
-	
-	E, mask = cv2.findEssentialMat(pts0, pts1, K, method = cv2.RANSAC, prob = 0.999, threshold = 0.4, mask = None) 
-	
+
+	E, mask = cv2.findEssentialMat(pts0, pts1, K, method = cv2.RANSAC, prob = 0.999, threshold = 0.4, mask = None)
+
 	pts0 = pts0[mask.ravel() == 1]
 	pts1 = pts1[mask.ravel() == 1]
-	
+
 	_, R, t, mask = cv2.recoverPose(E, pts0, pts1, K)
-	
+
 	R_t_1[:3,:3] = np.matmul(R, R_t_0[:3,:3])
 	R_t_1[:3, 3] = R_t_0[:3, 3] + np.matmul(R_t_0[:3,:3],t.ravel())
-	
+
 	#camera_orientation(mesh,R_t_1,i+1)
 
 	P2 = np.matmul(K, R_t_1)
 	if densify:
 		pts0, pts1 = make_patch(img0, img1, pts0, pts1, img0gray.shape)
-		
+
 	pts0, pts1, points_3d = Triangulation(P1, P2, pts0, pts1, K, repeat = False)
-	print(points_3d.shape)
-	
+	#print(points_3d.shape)
+
 	#print(P1, P2)
-	
+
 	error, points_3d = ReprojectionError(points_3d, pts1, R_t_1, K, homogenity = 1)
 	print("Reprojection Error: ",error)
-	
+
 	Rot, trans, pts1, points_3d, pts0t = PnP(points_3d, pts1, K, np.zeros((5,1), dtype = np.float32), pts0)
 	#print(Rot, trans, pnew.shape, Xnew.shape)
 	Rtnew = np.hstack((Rot, trans))
@@ -325,15 +327,15 @@ while(i < len(images) - 1):
 	#print(Rtnew, R_t_1)
 	#pts1 = pts1.T
 	#print(pts1.shape, points_3d.shape)
-	
+
 	#pts0, pts1, points_3d = Triangulation(Pref, Pnew, pts0, pts1, K, repeat = True)
 
 	error, points_3d = ReprojectionError(points_3d, pts1, Rtnew, K, homogenity = 0)
-	
-	camera_orientation(mesh, Rtnew, i + 1)
+
+	camera_orientation(path,mesh, Rtnew, i + 1)
 	#print(pts0.shape, pts1.shape)
-	
-	
+
+
 	posefile.write(str(i + 1) + " = " + str(Rtnew.flatten()).replace('\n',''))
 	posefile.write("\n")
 
@@ -347,23 +349,22 @@ while(i < len(images) - 1):
 	else:
 		colors = np.array([img1[l[0],l[1]] for l in pts1_reg])
 	colorstot = np.vstack((colorstot, colors))
-	if apply_ba:	
+	if apply_ba:
 		R_t_1, P2, points_3d = BundleAdjustment(points_3d, pts1, P2, R_t_1, K)
 		error, points_3d = ReprojectionError(points_3d, pts1, R_t_1, K, homogenity = 0)
 		print("Minimized Reprojection Error: ",error)
-	
+
 	cv2.imshow('image1', img0)
 	cv2.imshow('image2', img1)
 	R_t_0 = np.copy(R_t_1)
 	P1 = np.copy(P2)
-	i = i + 1
 	if cv2.waitKey(1) & 0xff == ord('q'):
 		break
-		
+
 cv2.destroyAllWindows()
 #print(Xtot.shape, colorstot.shape)
 print("Processing Point Cloud...")
-to_ply(Xtot, colorstot, densify)
+to_ply(path,Xtot, colorstot, densify)
 print("Done!")
 
 posefile.close()
