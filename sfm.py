@@ -129,13 +129,16 @@ def ZNCC(img0, img1, pts0, pts1, shapes):
 	patch_ht = (nsize - 1)/2
 	
 	i = 0
-	#while(i < len(pts0)):
-	#	p0 = pts0[i]
-	#	p1 = pts1[i]
-	#	dec0 = p0 - patch_ht
-	#	dec1 = p0 - patch_ht
-	#	if dec0 > 0 and dec1 > 0:
-			
+	while(i < len(pts0)):
+		p0 = pts0[i]
+		p1 = pts1[i]
+		dec0 = p0 - patch_ht
+		dec1 = p1 - patch_ht
+		
+		patch00 = np.linspace(dec0[0],dec0[0] + nsize - 1, nsize)
+		patch01 = np.linspace(dec0[1],dec0[1] + nsize - 1, nsize)
+		patch10 = np.linspace(dec1[0],dec1[0] + nsize - 1, nsize)
+		patch11 = np.linspace(dec1[0],dec1[0] + nsize - 1, nsize)
 	
 	
 
