@@ -122,24 +122,34 @@ def BundleAdjustment(X, p, P, Rt, K):
 	return Rt, P, points_3d
 	
 def ZNCC(img0, img1, pts0, pts1, shapes):
-	nsize = 11
 	width, height = shapes
 	pts0 = np.array(pts0, dtype = np.int32)
 	pts1 = np.array(pts1, dtype = np.int32)
-	patch_ht = (nsize - 1)/2
-	
 	i = 0
+	nsize = 11
 	while(i < len(pts0)):
+		patch_ht = (nsize - 1)/2
 		p0 = pts0[i]
 		p1 = pts1[i]
 		dec0 = p0 - patch_ht
 		dec1 = p1 - patch_ht
-		
 		patch00 = np.linspace(dec0[0],dec0[0] + nsize - 1, nsize)
 		patch01 = np.linspace(dec0[1],dec0[1] + nsize - 1, nsize)
 		patch10 = np.linspace(dec1[0],dec1[0] + nsize - 1, nsize)
 		patch11 = np.linspace(dec1[0],dec1[0] + nsize - 1, nsize)
-	
+		if np.count_nonzero(patch00 < 0) == 0 and np.count_nonzero(patch01 < 0) == 0 and np.count_nonzero(patch10 < 0) == 0 and np.count_nonzero(patch11 < 0) == 0:
+			i = i + 1
+			nsize = 11
+		else:
+			nsize = nsize - 2
+			continue
+		#print(len(patch00), len(patch01), len(patch10), len(patch11))
+		#patch0 = np.column_stack((patch00, patch01))
+		#print(patch0)
+		patch0 = np.array(np.meshgrid(patch00, patch01)).T.reshape(-1,2)
+		patch1 = np.array(np.meshgrid(patch10, patch11)).T.reshape(-1,2)
+		print(patch0.shape,patch1.shape)
+		
 	
 
 def to_ply(point_cloud, colors):
