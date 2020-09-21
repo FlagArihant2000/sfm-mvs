@@ -30,13 +30,13 @@ The README is divided into two parts,
 The dataset used is fountain - P11 ([Link](https://github.com/openMVG/SfM_quality_evaluation/tree/master/Benchmarking_Camera_Calibration_2008/fountain-P11)).
 
 A sample image:
-![](0008.jpg)
+<img src="Dataset/0008.jpg" style="zoom:50%;" />
 
 ### Output
 
 The output is without bundle adjustment since it is extremely computationally expensive. Currently working on speeding up that process.
 
-![Image](resultpnp.png)
+<img src="Result/resultpnp.png" alt="Image" style="zoom:50%;" />
 
 # Multiview Stereo (MVS)
 
