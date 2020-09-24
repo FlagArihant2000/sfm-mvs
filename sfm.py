@@ -1,4 +1,4 @@
-# Structure from Motion
+# Structure from Motion and Patch - Based Multiview Stereo
 # Authors: Arihant Gaur and Saurabh Kemekar
 # Organization: IvLabs, VNIT
 
@@ -270,8 +270,8 @@ posefile.write(str(i) + " = " + str(R_t_0.flatten()).replace('\n',''))
 posefile.write("\n")
 fpfile = open(img_dir+'/features.txt','w')
 
-apply_ba = True
-densify = False # Application of Patch based MVS to make a denser point cloud
+apply_ba = False
+densify = True # Application of Patch based MVS to make a denser point cloud
 
 for i in tqdm(range(len(images)-1)):
 	print(img_dir +'/'+ images[i])
@@ -304,14 +304,20 @@ for i in tqdm(range(len(images)-1)):
 
 	_, R, t, mask = cv2.recoverPose(E, pts0, pts1, K)
 
-	R_t_1[:3,:3] = np.matmul(R, R_t_0[:3,:3])
-	R_t_1[:3, 3] = R_t_0[:3, 3] + np.matmul(R_t_0[:3,:3],t.ravel())
-
-	#camera_orientation(mesh,R_t_1,i+1)
-
-	P2 = np.matmul(K, R_t_1)
+	#R_t_1[:3,:3] = np.matmul(R, R_t_0[:3,:3])
+	#R_t_1[:3, 3] = R_t_0[:3, 3] + np.matmul(R_t_0[:3,:3],t.ravel())
 	if densify:
 		pts0, pts1 = make_patch(img0, img1, pts0, pts1, img0gray.shape)
+		# Patch matches has many outliers, which have been filtered using RANSAC.
+		_, mask = cv2.findEssentialMat(pts0, pts1, K, method = cv2.RANSAC, prob = 0.999, threshold = 0.4, mask = None)
+		pts0 = pts0[mask.ravel() == 1]
+		pts1 = pts1[mask.ravel() == 1]
+		_, R, t, mask = cv2.recoverPose(E, pts0, pts1, K)
+
+	R_t_1[:3,:3] = np.matmul(R, R_t_0[:3,:3])
+	R_t_1[:3, 3] = R_t_0[:3, 3] + np.matmul(R_t_0[:3,:3],t.ravel())
+	P2 = np.matmul(K, R_t_1)
+	#camera_orientation(mesh,R_t_1,i+1)
 
 	pts0, pts1, points_3d = Triangulation(P1, P2, pts0, pts1, K, repeat = False)
 	#print(points_3d.shape)
@@ -325,11 +331,7 @@ for i in tqdm(range(len(images)-1)):
 	#print(Rot, trans, pnew.shape, Xnew.shape)
 	Rtnew = np.hstack((Rot, trans))
 	Pnew = np.matmul(K, Rtnew)
-	#print(Rtnew, R_t_1)
-	#pts1 = pts1.T
-	#print(pts1.shape, points_3d.shape)
 
-	#pts0, pts1, points_3d = Triangulation(Pref, Pnew, pts0, pts1, K, repeat = True)
 
 	error, points_3d = ReprojectionError(points_3d, pts1, Rtnew, K, homogenity = 0)
 
