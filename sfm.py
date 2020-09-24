@@ -79,7 +79,8 @@ def ReprojectionError(X, pts, Rt, K, homogenity):
 
 def OptimReprojectionError(X_locs, p, r, t, K):
 	total_error = 0
-	p = p.T
+	#p = p.T
+	#print(p.shape)
 	num_pts = len(p)
 	R = X_locs[0:9].reshape((3,3))
 	t = X_locs[9:12]
@@ -96,11 +97,11 @@ def OptimReprojectionError(X_locs, p, r, t, K):
 		er = (img_pt - reprojected_pt)**2
 		error.append(er)
 
-
+	#print(np.sum(np.array(error).ravel()/num_pts))
 	return np.array(error).ravel()/num_pts
 
 def BundleAdjustment(X, p, P, Rt, K):
-	num_points = len(p.T)
+	num_points = len(p)
 	R = Rt[:3,:3]
 	t = Rt[:3,3]
 	opt_variables = np.hstack((R.ravel(), t.ravel()))
@@ -108,7 +109,7 @@ def BundleAdjustment(X, p, P, Rt, K):
 	opt_variables = np.hstack((opt_variables, X.ravel()))
 	#print(X.shape, p.shape)
 	#print(P)
-	corrected_values = least_squares(OptimReprojectionError, opt_variables, args = (p, num_points, t, K))
+	corrected_values = least_squares(OptimReprojectionError, opt_variables, args = (p, num_points, t, K), max_nfev = 1)
 	#P = corrected_values.x[0:12].reshape(3,4)
 	#print(P)
 	corrected_values = corrected_values.x
@@ -148,7 +149,7 @@ def make_patch(img0, img1, pts0, pts1, shapes):
 	pts0 = np.array(pts0, dtype = np.int32)
 	pts1 = np.array(pts1, dtype = np.int32)
 	ZNCC_val = []
-	ZNCC_thresh = 2.8
+	ZNCC_thresh = 2
 	dense_pts0 = np.zeros((1,2))
 	dense_pts1 = np.zeros((1,2))
 
@@ -269,8 +270,8 @@ posefile.write(str(i) + " = " + str(R_t_0.flatten()).replace('\n',''))
 posefile.write("\n")
 fpfile = open(img_dir+'/features.txt','w')
 
-apply_ba = False
-densify = True # Application of Patch based MVS to make a denser point cloud
+apply_ba = True
+densify = False # Application of Patch based MVS to make a denser point cloud
 
 for i in tqdm(range(len(images)-1)):
 	print(img_dir +'/'+ images[i])
