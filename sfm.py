@@ -308,6 +308,8 @@ for i in tqdm(range(len(images)-1)):
 	pts1 = pts1[mask.ravel() == 1]
 
 	_, R, t, mask = cv2.recoverPose(E, pts0, pts1, K)
+	pts0 = pts0[mask.ravel() > 0]
+	pts1 = pts1[mask.ravel() > 0]
 
 	#R_t_1[:3,:3] = np.matmul(R, R_t_0[:3,:3])
 	#R_t_1[:3, 3] = R_t_0[:3, 3] + np.matmul(R_t_0[:3,:3],t.ravel())
