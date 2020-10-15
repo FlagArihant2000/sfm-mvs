@@ -124,6 +124,8 @@ def BundleAdjustment(X, p, P, Rt, K):
 
 	return Rt, P, points_3d
 
+
+
 def ZNCC(img1, img2, patch1, patch2):
 	color1 = np.array([img1[l[0],l[1]] for l in patch1])
 	color2 = np.array([img2[ll[0],ll[1]] for ll in patch2])
@@ -253,6 +255,9 @@ colorstot = np.zeros((1,3))
 path = os.getcwd()
 img_dir = path + '/Dataset'
 
+#img_dir = '/home/arihant/Desktop/SfM_quality_evaluation-master/Benchmarking_Camera_Calibration_2008/entry-P10/images/'
+# Other Directories: fountain-P11, castle-P19, castle-P30, entry-P10, Herz-Jesus-P25
+
 img_list = sorted(os.listdir(img_dir))
 images = []
 for img in img_list:
@@ -271,7 +276,7 @@ posefile.write("\n")
 fpfile = open(img_dir+'/features.txt','w')
 
 apply_ba = False
-densify = True # Application of Patch based MVS to make a denser point cloud
+densify = False # Application of Patch based MVS to make a denser point cloud
 
 for i in tqdm(range(len(images)-1)):
 	print(img_dir +'/'+ images[i])
@@ -347,6 +352,7 @@ for i in tqdm(range(len(images)-1)):
 	Xtot = np.vstack((Xtot, points_3d))
 	pts1_reg = np.array(pts1, dtype = np.int32)
 	#colors = np.array([img1[l[1],l[0]] for l in pts1_reg.T])
+	#print(pts1_reg.shape, img1.shape, points_3d.shape)
 	if not densify:
 		colors = np.array([img1[l[1],l[0]] for l in pts1_reg])
 	else:
