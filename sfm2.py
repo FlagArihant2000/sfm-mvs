@@ -1,50 +1,48 @@
 import cv2
 import numpy as np
 import os
-from scipy.optimize import least_squares
-from scipy.sparse import lil_matrix
-import copy
-import open3d as o3d
+import sys
 
-def Triangulation(R, t, K, pts0, pts1):
-	R0 = np.eye(3)
-	t0 = np.zeros((3,1))
-	Rt0 = np.hstack((R0, t0))
-	Rt1 = np.hstack((R,t))
+def Triangulation(P0, P1, pts0, pts1):
 	
-	P0 = np.matmul(K, Rt0)
-	P1 = np.matmul(K, Rt1)
+	#Rt0 = np.hstack((R0, t0))
+	#Rt1 = np.hstack((R,t))
+	
+	#P0 = np.matmul(K, Rt0)
+	#P1 = np.matmul(K, Rt1)
 	
 	P0 = np.float32(P0)
 	P1 = np.float32(P1)
 	
 	pts0 = np.float32(pts0.T)
 	pts1 = np.float32(pts1.T)
-	
 	X = cv2.triangulatePoints(P0, P1, pts0, pts1)
 	X = cv2.convertPointsFromHomogeneous(X.T)
 	return np.array(X)
-	
-def PnP(p0, p, X, K):
-	X = X[:, 0, :]
+
+def PnP(p0, p, X, K, P):
+	#X = X[:, 0, :]
 	#p = p.T
 	#p0 = p0.T
+	# Find the corresponding 3D points with the new image parameters. We have projection matrix for previous image and corresponding new image points. From this, find newer 3D points.
+	
+	
 	d = np.zeros((5,1))
-	ret, rvecs, t, inliers = cv2.solvePnPRansac(X, p.T, K, d, cv2.SOLVEPNP_ITERATIVE)
+	#print(X.shape, p.shape, K.shape, d.shape, p.shape, pold.shape)
+	ret, rvecs, t, inliers = cv2.solvePnPRansac(X, p, K, d, cv2.SOLVEPNP_ITERATIVE)
 	
 	R, _ = cv2.Rodrigues(rvecs)
 	
 	if inliers is not None:
 		p = p[inliers[:,0]]
 		X = X[inliers[:,0]]
-		p0 = p0[inliers[:,0]]
+		#p0 = p0[inliers[:,0]]
 
 	return R, t, p, p0, X
-
+	
 def to_ply(path,point_cloud, colors, densify):
 	out_points = point_cloud.reshape(-1,3)
 	out_colors = colors.reshape(-1,3)
-	
 	verts = np.hstack([out_points, out_colors])
 
 	ply_header = '''ply
@@ -67,12 +65,8 @@ def to_ply(path,point_cloud, colors, densify):
 			f.write(ply_header %dict(vert_num = len(verts)))
 			np.savetxt(f, verts, '%f %f %f %d %d %d')
 
-cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
-cv2.namedWindow('image2', cv2.WINDOW_NORMAL)
-
-K = np.array([[2759.48, 0, 1520.69], [0, 2764.16, 1006.81], [0, 0, 1]])
-#K = np.array([[1520.400000, 0.000000, 302.320000], [0.000000, 1525.900000, 246.870000], [0.000000, 0.000000, 1.000000]])
 #K = np.array([[2393.952166119461, -3.410605131648481e-13, 932.3821770809047], [0, 2398.118540286656, 628.2649953288065], [0, 0, 1]])
+K = np.array([[2759.48, 0, 1520.69], [0, 2764.16, 1006.81], [0, 0, 1]])
 downscale = 2
 
 K[0,0] = K[0,0] / float(downscale)
@@ -80,135 +74,121 @@ K[1,1] = K[1,1] / float(downscale)
 K[0,2] = K[0,2] / float(downscale)
 K[1,2] = K[1,2] / float(downscale)
 
-
-R_t_0 = np.array([[1,0,0,0], [0,1,0,0], [0,0,1,0]])
-R_t_1 = np.empty((3,4))
-
-P1 = np.matmul(K, R_t_0)
-Pref = P1
-P2 = np.empty((3,4))
-
-
-Xtot = np.zeros((1,3))
-colorstot = np.zeros((1,3))
+cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
+cv2.namedWindow('image2', cv2.WINDOW_NORMAL)
 
 path = os.getcwd()
-img_dir = path + '/Dataset'
-#img_dir = path + '/Dataset2'
-#img_dir = '/home/arihant/Desktop/SfM_quality_evaluation-master/Benchmarking_Camera_Calibration_2008/castle-P30/images/'
-# Other Directories: fountain-P11, castle-P19, castle-P30, entry-P10, Herz-Jesus-P25
+#img_dir = path + '/Dataset2/'
+img_dir = '/home/arihant/sfm-mvs/Dataset/'
 
+#img_dir = '/home/arihant/Desktop/uoft/'
 img_list = sorted(os.listdir(img_dir))
+
 images = []
+
 for img in img_list:
-	if '.jpg' in img or '.jpeg' in img:
+	if '.JPG' in img or '.jpg' in img:
 		images = images + [img]
-i = 0
-mesh = o3d.geometry.TriangleMesh.create_coordinate_frame()
 
-#camera_orientation(path,mesh,R_t_0,i)
+t0 = np.zeros((3,1))
+R0 = np.eye(3)
+Rt0 = np.hstack((R0, t0))
+P0 = np.matmul(K, Rt0)
+Pref = P0
 
-'''posefile = open(img_dir+'/poses.txt','w')
-posefile.write("K = " + str(K.flatten()).replace('\n',''))
-posefile.write("\n")
-posefile.write(str(i) + " = " + str(R_t_0.flatten()).replace('\n',''))
-posefile.write("\n")
-fpfile = open(img_dir+'/features.txt','w')'''
+#print(X.shape)
+#sys.exit()
+cameras = [P0]
 
-img0 = cv2.pyrDown(cv2.imread(img_dir +'/'+ images[i]))
 
-keypoints = []
-descriptors = []
-matches = []
-#frame_ind = []
-imgs = []
 Xtot = np.zeros((1,3))
 colorstot = np.zeros((1,3))
 
-visualize_first_cloud = False
-visualize_cloud = True
-densify = False
 
-print("Detecting Features...")
-# FEATURE DETECTION
-for i, im in enumerate(images):
+i = 0
+densify = False
+while(i < len(images) - 1):
+
+	print("Image Acquisition...")
 	if downscale == 2:
-		img = cv2.pyrDown(cv2.imread(img_dir + '/' + im))
+		img0 = cv2.pyrDown(cv2.imread(img_dir +'/'+ images[i]))
+		img1 = cv2.pyrDown(cv2.imread(img_dir +'/'+ images[i + 1]))
 	else:
-		img = cv2.imread(img_dir + '/' + im)
+		img0 = cv2.imread(img_dir +'/'+ images[i])
+		img1 = cv2.imread(img_dir +'/'+ images[i + 1])
 	
-	imggray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+	img0gray = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
+	img1gray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+	
+	print("Feature Detection...")
 	sift = cv2.xfeatures2d.SIFT_create()
-	kp, des = sift.detectAndCompute(imggray, None)
-	keypoints = keypoints + [kp]
-	descriptors = descriptors + [des]
-	imgs = imgs + [img]
-	#print(i)
-print("Matching features for image pairs...")
-points0 = []
-points1 = []
-for c in range(len(images) - 1):
-	#print(c)
-	des0 = descriptors[c]
-	des1 = descriptors[c + 1]
-	kp0 = keypoints[c]
-	kp1 = keypoints[c + 1]
+	kp0, des0 = sift.detectAndCompute(img0gray, None)
+	kp1, des1 = sift.detectAndCompute(img1gray, None)
 	
+	print("Feature Matching...")
 	bf = cv2.BFMatcher()
-	matches = bf.knnMatch(des0, des1, k = 2)
-	
+	matches = bf.knnMatch(des0, des1, k=2)
 	good = []
 	for m,n in matches:
-		if m.distance < 0.70 * n.distance:
+		if m.distance < 0.8 * n.distance:
 			good.append(m)
 	
 	pts0 = np.float32([kp0[m.queryIdx].pt for m in good])
 	pts1 = np.float32([kp1[m.trainIdx].pt for m in good])
-	points0 = points0 + [pts0]
-	points1 = points1 + [pts1]
-
-keypoints = []	
-print("First Pair Essential Matrix...")
-E, mask = cv2.findEssentialMat(points0[0], points1[0], K, method = cv2.RANSAC, prob = 0.9, threshold = 5.0, mask = None)
-points0[0] = points0[0][mask.ravel() == 1]
-points1[0] = points1[0][mask.ravel() == 1]
-print("Pose Recovery...")
-_, R, t, mask = cv2.recoverPose(E, points0[0], points1[0], K)
 	
-points0[0] = points0[0][mask.ravel() > 0]
-points1[0] = points1[0][mask.ravel() > 0]
-#points0[1] = points1[0]
-print("Triangulation for first pair...")
-X = Triangulation(R, t, K, points0[0], points1[0])
-#print(X.shape)
+	print("Essential Matrix and Pose Recovery...")
+	E, mask = cv2.findEssentialMat(pts0, pts1, K, method = cv2.RANSAC, prob = 0.999, threshold = 0.4, mask = None)
 
-
-Xtot = np.vstack((Xtot, X[:, 0, :]))
-pts1_reg = np.array(points1[0], dtype = np.int32)
-colors = np.array([imgs[1][l[1],l[0]] for l in pts1_reg])
-colorstot = np.vstack((colorstot, colors))
-
-if visualize_first_cloud:
-	to_ply(path, Xtot, colorstot, densify)
+	pts0 = pts0[mask.ravel() == 1]
+	pts1 = pts1[mask.ravel() == 1]
+	_, R, t, mask = cv2.recoverPose(E, pts0, pts1, K)
 	
-# Now, add other images and incrementally add the points
-i = 1
-while(i < len(images) - 1):
-	print(i)
-	Rnew, tnew, points1[i], points0[i], Xn = PnP(points0[i], points1[i], X, K)
-	X = Triangulation(R, t, K, points0[i], points1[i])
+	pts0 = pts0[mask.ravel() > 0]
+	pts1 = pts1[mask.ravel() > 0]
 	
-	Xtot = np.vstack((Xtot, X[:, 0, :]))
-	pts1_reg = np.array(points1[i], dtype = np.int32)
-	colors = np.array([imgs[i + 1][l[1],l[0]] for l in pts1_reg])
+	Rt = np.hstack((R, t))
+	P = np.matmul(K, Rt)
+	
+	X = Triangulation(Pref, P, pts0, pts1)
+	
+	
+	Rpnp, tpnp, pts0, pts1, X = PnP(pts0, pts1, X, K, P)
+	
+	Rtpnp = np.hstack((Rpnp, tpnp))
+	Ppnp = np.matmul(K, Rtpnp)
+	
+	R1 = np.matmul(R0, Rpnp)
+	t1 = t0 + np.matmul(R1, tpnp)
+	
+	
+	Rt1 = np.hstack((R1,t1))
+	P1 = np.matmul(K, Rt1)
+	
+	cameras = cameras + [P1]
+	print(P0, P1)
+	points_3d = Triangulation(P0, P1, pts0, pts1)
+	
+	Xtot = np.vstack((Xtot, points_3d[:, 0, :]))
+	pts1_reg = np.array(pts1, dtype = np.int32)
+	colors = np.array([img1[l[1],l[0]] for l in pts1_reg])
 	colorstot = np.vstack((colorstot, colors))
-	i = i + 1
 	
-if visualize_cloud:
-	to_ply(path, Xtot, colorstot, densify)
-
-
+	cv2.imshow('image1', img0)
+	cv2.imshow('image2', img1)
+	if cv2.waitKey(1) & 0xff == ord('q'):
+		break
+	
+	print(i)
+	R0 = R1
+	t0 = t1
+	P0 = P1
+	i = i + 1
+	break
+	
+	
+print("Processing Point Cloud...")
+to_ply(path, Xtot, colorstot, densify)
 cv2.destroyAllWindows()
 
-
+print("DONE")
 
