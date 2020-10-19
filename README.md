@@ -24,6 +24,7 @@ The README is divided into two parts,
 7. The quality of triangulation is done using re-projection error. The triangulated points are re - mapped onto the image plane and the deviation between the matching points is calculated. (Note that in the code, rotation matrix is converted into vector using Rodrigues equation).
 8. An optional step is added, that is, minimising of re-projection error using bundle adjustment. The triangulated points and projection matrices are stacked and converted to feature vector. Then, re-projection error is considered as cost function and optimisation is done using non - linear least squares method (Levenberg Marquardt method).
 9. The 3D points are converted into point cloud format, along with the corresponding pixel colour at that location, which is then stored in ```sparse.ply```.
+10. For subsequent images, the camera pose with respect to world coordinates are considered using Perspective - n - Point (PnP) projection, followed by re - triangulation, which is added with the original point cloud.
 
 ## Dataset
 
@@ -61,6 +62,7 @@ Execute: Under ```sfm.py```, change ```densify = False``` to ```True```.
 1. Speed up bundle adjustment.
 2. Outlier rejection in ```5x5``` from each patch.
 3. Add new feature constraints.
+4. Improve sparse reconstruction. Having made some changes in the pipeline to make it match with the original method has resulted in distortion of point cloud.
 
 ### Team Members
 

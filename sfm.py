@@ -231,9 +231,9 @@ def to_ply(path,point_cloud, colors, densify):
 cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
 cv2.namedWindow('image2', cv2.WINDOW_NORMAL)
 
-#K = np.array([[2759.48, 0, 1520.69], [0, 2764.16, 1006.81], [0, 0, 1]])
+K = np.array([[2759.48, 0, 1520.69], [0, 2764.16, 1006.81], [0, 0, 1]])
 #K = [ 1.19697608e+03 -3.41060513e-13  4.66191089e+02  0.00000000e+00  1.19905927e+03  3.14132498e+02  0.00000000e+00  0.00000000e+00  1.00000000e+00]
-K = np.array([[1.19697608e+03, -3.41060513e-13, 4.66191089e+02], [0.00000000e+00, 1.19905927e+03, 3.14132498e+02], [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
+#K = np.array([[1.19697608e+03, -3.41060513e-13, 4.66191089e+02], [0.00000000e+00, 1.19905927e+03, 3.14132498e+02], [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
 #K = np.array([[1520.400000, 0.000000, 302.320000], [0.000000, 1525.900000, 246.870000], [0.000000, 0.000000, 1.000000]])
 downscale = 2
 
@@ -254,8 +254,8 @@ Xtot = np.zeros((1,3))
 colorstot = np.zeros((1,3))
 
 path = os.getcwd()
-#img_dir = path + '/Dataset2'
-img_dir = '/home/arihant/Desktop/uoft/'
+img_dir = path + '/Dataset'
+#img_dir = '/home/arihant/Desktop/uoft/'
 #img_dir = '/home/arihant/Desktop/SfM_quality_evaluation-master/Benchmarking_Camera_Calibration_2008/entry-P10/images/'
 # Other Directories: fountain-P11, castle-P19, castle-P30, entry-P10, Herz-Jesus-P25
 

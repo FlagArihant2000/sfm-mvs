@@ -28,7 +28,7 @@ def PnP(p0, p, X, K, P):
 	
 	
 	d = np.zeros((5,1))
-	#print(X.shape, p.shape, K.shape, d.shape, p.shape, pold.shape)
+	print(X.shape, p.shape, K.shape, d.shape)
 	ret, rvecs, t, inliers = cv2.solvePnPRansac(X, p, K, d, cv2.SOLVEPNP_ITERATIVE)
 	
 	R, _ = cv2.Rodrigues(rvecs)
@@ -65,8 +65,8 @@ def to_ply(path,point_cloud, colors, densify):
 			f.write(ply_header %dict(vert_num = len(verts)))
 			np.savetxt(f, verts, '%f %f %f %d %d %d')
 
-#K = np.array([[2393.952166119461, -3.410605131648481e-13, 932.3821770809047], [0, 2398.118540286656, 628.2649953288065], [0, 0, 1]])
-K = np.array([[2759.48, 0, 1520.69], [0, 2764.16, 1006.81], [0, 0, 1]])
+K = np.array([[2393.952166119461, -3.410605131648481e-13, 932.3821770809047], [0, 2398.118540286656, 628.2649953288065], [0, 0, 1]])
+#K = np.array([[2759.48, 0, 1520.69], [0, 2764.16, 1006.81], [0, 0, 1]])
 downscale = 2
 
 K[0,0] = K[0,0] / float(downscale)
@@ -79,9 +79,9 @@ cv2.namedWindow('image2', cv2.WINDOW_NORMAL)
 
 path = os.getcwd()
 #img_dir = path + '/Dataset2/'
-img_dir = '/home/arihant/sfm-mvs/Dataset/'
+#img_dir = '/home/arihant/sfm-mvs/Dataset/'
 
-#img_dir = '/home/arihant/Desktop/uoft/'
+img_dir = '/home/arihant/Desktop/uoft/'
 img_list = sorted(os.listdir(img_dir))
 
 images = []
@@ -109,7 +109,7 @@ i = 0
 densify = False
 while(i < len(images) - 1):
 
-	print("Image Acquisition...")
+	#print("Image Acquisition...")
 	if downscale == 2:
 		img0 = cv2.pyrDown(cv2.imread(img_dir +'/'+ images[i]))
 		img1 = cv2.pyrDown(cv2.imread(img_dir +'/'+ images[i + 1]))
@@ -120,12 +120,12 @@ while(i < len(images) - 1):
 	img0gray = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
 	img1gray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
 	
-	print("Feature Detection...")
+	#print("Feature Detection...")
 	sift = cv2.xfeatures2d.SIFT_create()
 	kp0, des0 = sift.detectAndCompute(img0gray, None)
 	kp1, des1 = sift.detectAndCompute(img1gray, None)
 	
-	print("Feature Matching...")
+	#print("Feature Matching...")
 	bf = cv2.BFMatcher()
 	matches = bf.knnMatch(des0, des1, k=2)
 	good = []
@@ -136,7 +136,7 @@ while(i < len(images) - 1):
 	pts0 = np.float32([kp0[m.queryIdx].pt for m in good])
 	pts1 = np.float32([kp1[m.trainIdx].pt for m in good])
 	
-	print("Essential Matrix and Pose Recovery...")
+	#print("Essential Matrix and Pose Recovery...")
 	E, mask = cv2.findEssentialMat(pts0, pts1, K, method = cv2.RANSAC, prob = 0.999, threshold = 0.4, mask = None)
 
 	pts0 = pts0[mask.ravel() == 1]
@@ -165,7 +165,7 @@ while(i < len(images) - 1):
 	P1 = np.matmul(K, Rt1)
 	
 	cameras = cameras + [P1]
-	print(P0, P1)
+	#print(P0, P1)
 	points_3d = Triangulation(P0, P1, pts0, pts1)
 	
 	Xtot = np.vstack((Xtot, points_3d[:, 0, :]))
@@ -183,7 +183,7 @@ while(i < len(images) - 1):
 	t0 = t1
 	P0 = P1
 	i = i + 1
-	break
+	#break
 	
 	
 print("Processing Point Cloud...")
