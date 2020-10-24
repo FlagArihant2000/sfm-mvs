@@ -49,11 +49,10 @@ features = []
 descriptors = []
 matches = []
 i = 0
-match_interval = 3
 densify = False
 tot_images = len(images)
-thresh_features = 200
-
+#thresh_features = 200
+match_interval = 3 # tot_images
 # Acquisition of all features as well as matching
 while(i < tot_images):
 	print("Image: ",i)
