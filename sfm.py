@@ -238,7 +238,7 @@ Xtot = np.zeros((1,3))
 colorstot = np.zeros((1,3))
 
 path = os.getcwd()
-#img_dir = path + '/Sample%20Dataset/'
+#img_dir = path + '/Sample Dataset/'
 img_dir = '/home/arihant/Desktop/Sequential-Structure-from-Motion/images/'
 #img_dir = '/home/arihant/Downloads/templeRing/'
 #img_dir = '/home/arihant/Desktop/uoft/'
@@ -253,7 +253,7 @@ for img in img_list:
 i = 0
 mesh = o3d.geometry.TriangleMesh.create_coordinate_frame()
 
-camera_orientation(path,mesh,R_t_0,i)
+#camera_orientation(path,mesh,R_t_0,i)
 
 posefile = open(img_dir+'/poses.txt','w')
 posefile.write("K = " + str(K.flatten()).replace('\n',''))
@@ -299,7 +299,7 @@ Rot, trans, pts1, points_3d, pts0t = PnP(points_3d, pts1, K, np.zeros((5,1), dty
 R = np.eye(3)
 t = np.array([[0],[0],[0]], dtype = np.float32)
 zoom = 1
-for i in tqdm(range(5)):
+for i in tqdm(range(9)):
 	if downscale == 1:
 		img2 = cv2.imread(img_dir +'/'+ images[i + 2])
 	else:
