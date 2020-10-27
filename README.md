@@ -34,7 +34,7 @@ A sample image:
 
 ### Output
 
-The output is estimated for a total of 10 images as of now. Due to a number of outlying 3D coordinates in point cloud, meshlab distorts the scale at which the object can be viewed (this will be fixed in next commit)
+The output is estimated for a total of 50 images as of now. Due to a number of outlying 3D coordinates in point cloud, meshlab distorts the scale at which the object can be viewed (this will be fixed in next commit)
 
 <img src="Result/result.png" alt="Image" style="zoom:50%;" />
 
