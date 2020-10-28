@@ -13,6 +13,9 @@ from tqdm import tqdm
 #from features import *
 import matplotlib.pyplot as plt
 
+# If TRUE, then local bundle adjustment will be performed
+bundle_adjust = True
+
 def Triangulation(P1, P2, pts1, pts2, K, repeat):
 
 	if not repeat:
@@ -45,6 +48,7 @@ def PnP(X, p, K, d, p_0, initial):
 		p = p.T
 		p_0 = p_0.T
 	
+	print(X.shape, p.shape)
 	ret, rvecs, t, inliers = cv2.solvePnPRansac(X, p, K, d, cv2.SOLVEPNP_ITERATIVE)
 	#print(X.shape, p.shape, t, rvecs)
 	R, _ = cv2.Rodrigues(rvecs)
@@ -76,33 +80,13 @@ def ReprojectionError(X, pts, Rt, K, homogenity):
 		total_error = cv2.norm(p, pts, cv2.NORM_L2)
 	pts = pts.T
 	tot_error = total_error/len(p)
-	#print(p, pts.T)
 
+	#print(pts[0], p[0])
 	return tot_error, X, p
 
-def OptimReprojectionError(X_locs, p, r, t, K):
-	total_error = 0
-	p = p.T
-	num_pts = len(p)
-	R = X_locs[0:9].reshape((3,3))
-	t = X_locs[9:12]
-	K = X_locs[12:21].reshape((3,3))
-	X_locs = np.float32(X_locs[21:].reshape((num_pts, 1, 3)))
-	error = []
-	r, _ = cv2.Rodrigues(R)
-	p2d, _ = cv2.projectPoints(X_locs, r, t, K, distCoeffs = None)
-	p2d = p2d[:, 0, :]
-	#p, _ = cv2.projectPoints(X, r, t, K, distCoeffs = None)
-	for idx in range(num_pts):
-		img_pt = p[idx]
-		reprojected_pt = p2d[idx]
-		er = (img_pt - reprojected_pt)**2
-		error.append(er)
 
 
-	return np.array(error).ravel()/num_pts
-
-def BundleAdjustment(X,pts1, P, Rt, K):
+"""def BundleAdjustment(X,pts1, P, Rt, K):
 	print(X.shape,pts1.shape)
 	num_points = len(pts1.T)
 	R = Rt[:3,:3]
@@ -122,7 +106,59 @@ def BundleAdjustment(X,pts1, P, Rt, K):
 	Rt = np.hstack((R,t))
 	P = np.matmul(K,Rt)
 
-	return Rt, P, points_3d
+	return Rt, P, points_3d"""
+	
+def OptimReprojectionError(x):
+	Rt = x[0:12].reshape((3,4))
+	K = x[12:21].reshape((3,3))
+	rest = len(x[21:])
+	rest = int(rest * 0.4)
+	p = x[21:21 + rest].reshape((2, int(rest/2)))
+	X = x[21 + rest:].reshape((int(len(x[21 + rest:])/3), 3))
+	R = Rt[:3, :3]
+	t = Rt[:3, 3]
+	
+	total_error = 0
+	
+	p = p.T
+	num_pts = len(p)
+	error = []
+	r, _ = cv2.Rodrigues(R)
+	
+	p2d, _ = cv2.projectPoints(X, r, t, K, distCoeffs = None)
+	p2d = p2d[:, 0, :]
+	#print(p2d[0], p[0])
+	for idx in range(num_pts):
+		img_pt = p[idx]
+		reprojected_pt = p2d[idx]
+		er = (img_pt - reprojected_pt)**2
+		error.append(er)
+	
+	err_arr = np.array(error).ravel()/num_pts
+	#print(err_arr[0])
+	return err_arr
+
+def BundleAdjustment(points_3d, temp2, Rtnew, K):
+	#print(points_3d.shape, temp1.shape, temp2.shape)
+	# Set the Optimization variables to be optimized
+	#print('wegiwrf', points_3d.shape, temp2.shape)
+	opt_variables = np.hstack((Rtnew.ravel(), K.ravel()))
+	opt_variables = np.hstack((opt_variables, temp2.ravel()))
+	opt_variables = np.hstack((opt_variables, points_3d.ravel()))
+
+	error = OptimReprojectionError(opt_variables)
+	corrected_values = least_squares(fun = OptimReprojectionError, x0 = opt_variables)
+	corrected_values = corrected_values.x
+	Rt = corrected_values[0:12].reshape((3,4))
+	K = corrected_values[12:21].reshape((3,3))
+	rest = len(corrected_values[21:])
+	rest = int(rest * 0.4)
+	p = corrected_values[21:21 + rest].reshape((2, int(rest/2)))
+	X = corrected_values[21 + rest:].reshape((int(len(corrected_values[21 + rest:])/3), 3))
+	p = p.T
+	
+	return X, p, Rt
+
 
 def Draw_points(image,pts, repro):
 	if repro == False:
@@ -136,7 +172,6 @@ def Draw_points(image,pts, repro):
 def to_ply(path,point_cloud, colors, densify):
 	out_points = point_cloud.reshape(-1,3)*200
 	out_colors = colors.reshape(-1,3)
-	print(out_colors.shape,out_points.shape)
 	verts = np.hstack([out_points, out_colors])
 
 	ply_header = '''ply
@@ -208,6 +243,9 @@ def find_features(img0,img1):
 	pts1 = np.float32([kp1[m.trainIdx].pt for m in good])
 
 	return pts0,pts1
+	
+	
+	
 # cv2.namedWindow('image1', cv2.WINDOW_NORMAL)
 # cv2.namedWindow('image2', cv2.WINDOW_NORMAL)
 
@@ -216,8 +254,8 @@ def find_features(img0,img1):
 #       [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
        
 #K = np.array([[2759.48, 0, 1520.69], [0, 2764.16, 1006.81], [0, 0, 1]])
-K = np.array([[2393.952166119461, -3.410605131648481e-13, 932.3821770809047], [0, 2398.118540286656, 628.2649953288065], [0, 0, 1]])
-#K = np.array([[1520.400000, 0.000000, 302.320000], [0.000000, 1525.900000, 246.870000], [0.000000, 0.000000, 1.000000]])
+#K = np.array([[2393.952166119461, -3.410605131648481e-13, 932.3821770809047], [0, 2398.118540286656, 628.2649953288065], [0, 0, 1]])
+K = np.array([[1520.400000, 0.000000, 302.320000], [0.000000, 1525.900000, 246.870000], [0.000000, 0.000000, 1.000000]])
 downscale = 2
 
 K[0,0] = K[0,0] / float(downscale)
@@ -238,9 +276,9 @@ Xtot = np.zeros((1,3))
 colorstot = np.zeros((1,3))
 
 path = os.getcwd()
-#img_dir = path + '/Sample%20Dataset/'
-img_dir = '/home/arihant/Desktop/Sequential-Structure-from-Motion/images/'
-#img_dir = '/home/arihant/Downloads/templeRing/'
+#img_dir = path + '/Sample Dataset/'
+#img_dir = '/home/arihant/Desktop/Sequential-Structure-from-Motion/images/'
+img_dir = '/home/arihant/Downloads/templeRing/'
 #img_dir = '/home/arihant/Desktop/uoft/'
 
 
@@ -253,7 +291,7 @@ for img in img_list:
 i = 0
 mesh = o3d.geometry.TriangleMesh.create_coordinate_frame()
 
-camera_orientation(path,mesh,R_t_0,i)
+#camera_orientation(path,mesh,R_t_0,i)
 
 posefile = open(img_dir+'/poses.txt','w')
 posefile.write("K = " + str(K.flatten()).replace('\n',''))
@@ -299,7 +337,7 @@ Rot, trans, pts1, points_3d, pts0t = PnP(points_3d, pts1, K, np.zeros((5,1), dty
 R = np.eye(3)
 t = np.array([[0],[0],[0]], dtype = np.float32)
 zoom = 1
-for i in tqdm(range(5)):
+for i in tqdm(range(20)):
 	if downscale == 1:
 		img2 = cv2.imread(img_dir +'/'+ images[i + 2])
 	else:
@@ -338,34 +376,44 @@ for i in tqdm(range(5)):
 		#R = np.matmul(R, Rot)
 		R = Rot
 		t = trans #+ np.matmul(R, trans)
+		
+	
 	
 	Rtnew = np.hstack((R,t))
+	
 	Pnew = np.matmul(K, Rtnew)
 	
 	
 	np.savetxt('p.txt',Rtnew)
 	print(Rtnew)
 	error, points_3d, _ = ReprojectionError(points_3d, com_pts2, Rtnew, K, homogenity = 0)
-	print("Reprojection Error for image 2 and 3: ", error)
+	#print("Reprojection Error for image 2 and 3: ", error)
+	
 	temp1,temp2, points_3d = Triangulation(P2, Pnew, temp1, temp2, K, repeat = False)
-	error, points_3d,_ = ReprojectionError(points_3d, temp2, Rtnew, K, homogenity = 1)
+	points_3d = cv2.convertPointsFromHomogeneous(points_3d.T)
+	points_3d = points_3d[:, 0, :]
+	if bundle_adjust:
+		points_3d, temp2, Rtnew = BundleAdjustment(points_3d, temp2, Rtnew, K)
+		
+	Pnew = np.matmul(K, Rtnew)
+	
+
+	error, points_3d,_ = ReprojectionError(points_3d, temp2, Rtnew, K, homogenity = 0)
 
 	#posefile.write(str(i + 1) + " = " + str(Rtnew.flatten()).replace('\n',''))
 	#posefile.write("\n")
-	print("New error",error,points_3d.shape,Xtot.shape)
-	Xtot = np.vstack((Xtot, points_3d[:, 0, :] * zoom))
-	pts1_reg = np.array(temp2, dtype = np.int32)
+	#print("New error",error,points_3d.shape,Xtot.shape)
 	
-	if not densify:
-		colors = np.array([img2[l[1],l[0]] for l in pts1_reg.T])
+	print("FINAL REPROJECTION ERROR: ", error)
+	Xtot = np.vstack((Xtot, points_3d * zoom))
+	pts1_reg = np.array(temp2, dtype = np.int32)
+	if bundle_adjust:
+		colors = np.array([img2[l[1],l[0]] for l in pts1_reg])
 	else:
-		colors = np.array([img2[l[0],l[1]] for l in pts1_reg])
+		colors = np.array([img2[l[1],l[0]] for l in pts1_reg.T])
+
 	colorstot = np.vstack((colorstot, colors))
-	print('oeirnhguhebygb6tf', pts1_reg.shape, colors.shape)
-	if apply_ba:
-		R_t_1, P2, points_3d = BundleAdjustment(points_3d,pts1,P2, R_t_1, K)
-		error, points_3d = ReprojectionError(points_3d, pts1, R_t_1, K, homogenity = 0)
-		print("Minimized Reprojection Error: ",error)
+	#print('oeirnhguhebygb6tf', pts1_reg.shape, colors.shape)
 
 	R_t_0 = np.copy(R_t_1)
 	P1 = np.copy(P2)
@@ -387,7 +435,7 @@ plt.show()
 cv2.destroyAllWindows()
 
 print("Processing Point Cloud...")
-print(Xtot.shape,colorstot.shape)
+
 to_ply(path,Xtot, colorstot, densify)
 print("Done!")
 

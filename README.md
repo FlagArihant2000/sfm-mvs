@@ -2,7 +2,7 @@
 
 The README is divided into two parts,
 1. Structure from Motion (For camera parameters and sparse reconstruction): Here, incremental structure from motion is implemented.
-2. Multiview Stereo (For dense reconstruction): Under Progress
+2. Multiview Stereo (For dense reconstruction): Will be done later.
 
 # Structure from Motion (SfM)
 
@@ -34,16 +34,14 @@ A sample image:
 
 ### Output
 
-The output is estimated for a total of 50 images as of now. Due to a number of outlying 3D coordinates in point cloud, meshlab distorts the scale at which the object can be viewed (this will be fixed in next commit)
-
 <img src="Result/result.png" alt="Image" style="zoom:50%;" />
 
 ## TO DO
 
-1. Locally perform bundle adjustment for a set of three images. As the poses are calculated in ascending order, for validation, the pose estimation will be done in reverse order for these three images. The obtained deviation will be minimised. This will refine the obtained camera poses.
-2. Fix the zoom issue so meshlab can analyse the point cloud. (vary scale of structure accordingly)
-3. Point cloud densification using multiview stereo.
-4. Clean the code, along with proper comments for readability.
+1. Local and Global Bundle Adjustment.
+2. Point cloud densification using multiview stereo.
+3. Clean the code, along with proper comments for readability.
+4. Transfer point cloud in Euclidean Space.
 
 ### Team Members
 
