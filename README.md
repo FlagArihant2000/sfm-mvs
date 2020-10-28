@@ -9,7 +9,7 @@ The README is divided into two parts,
 ## Steps to Execute
 
 1. Clone the repository as ```git clone https://github.com/FlagArihant2000/sfm-mvs```
-2. ```cd sfm-mvs```
+2. ```cd sfm-mvs```. The directory for the image directory, along with the camera parameters can be updated accordingly.
 3. Run ```python3 sfm.py```.
 4. If executed successfully, open ```sparse.ply``` to analyse the sparse reconstruction using meshlab.
 
