@@ -4,16 +4,16 @@ The README is divided into two parts,
 1. Structure from Motion (For camera parameters and sparse reconstruction): Here, incremental structure from motion is implemented.
 2. Multiview Stereo (For dense reconstruction): Will be done later.
 
-# Structure from Motion (SfM)
+## Structure from Motion (SfM)
 
-## Steps to Execute
+### Steps to Execute
 
 1. Clone the repository as ```git clone https://github.com/FlagArihant2000/sfm-mvs```
 2. ```cd sfm-mvs```. The directory for the image directory, along with the camera parameters can be updated accordingly.
 3. Run ```python3 sfm.py```.
 4. If executed successfully, open ```sparse.ply``` to analyse the sparse reconstruction using meshlab.
 
-## Pipeline
+### Pipeline
 1. Acquire the first image pair.
 2. Detection of features using SIFT.
 3. Feature matching using brute force KNN. Good feature matches are by taking the distance ratio (According to Lowe's paper) as 0.7.
@@ -25,23 +25,27 @@ The README is divided into two parts,
 9. This image can now see new points, which were not there in original point cloud. So, triangulation is done for the same. Again the reprojection error is calculated.
 10. Now, for each newly added image, the pipeline will repeat from step 8.
 
-## Dataset
+### Dataset
 
-The dataset used is a statue of Gustav II Adolf ([Link](http://www.maths.lth.se/matematiklth/personal/calle/dataset/dataset.html)).
+The dataset used is a statue of Gustav II Adolf ([Link](http://www.maths.lth.se/matematiklth/personal/calle/dataset/dataset.html)). All the images have been used for obtaining the sparse point cloud.
 
 A sample image:
-<img src="image.jpg" style="zoom:25%;" />
+<img src="image.jpg" alt="Image" style="zoom:25%;" />
+
+
 
 ### Output
 
 <img src="Result/result.png" alt="Image" style="zoom:50%;" />
 
-## TO DO
 
-1. Local and Global Bundle Adjustment.
-2. Point cloud densification using multiview stereo.
-3. Clean the code, along with proper comments for readability.
-4. Transfer point cloud in Euclidean Space.
+
+### TO DO
+
+2. Speed up bundle adjustment.
+2. Transfer point cloud in Euclidean Space.
+3. Densify point cloud using multiview stereo.
+4. The end goal for this project is to have a large scale structure from motion, that uses unordered set of images.
 
 ### Team Members
 
