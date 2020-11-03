@@ -44,7 +44,7 @@ for img in img_list:
 #print(images)
 i = 0
 sift = cv2.xfeatures2d.SIFT_create()
-bf = cv2.BFMatcher()
+bf = cv2.BFMatcher(crossCheck = False)
 
 indexes = np.array([], dtype = np.int16)
 tot_images = 10
@@ -52,7 +52,7 @@ descriptors = np.array([])
 keypoints = np.array([])
 
 
-# Input: Set of images. Output: indexes, features and descriptors for all images
+
 while(i < tot_images):
 	img = img_downscale(cv2.imread(img_dir + '/' + images[i]), downscale)
 	imggray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -76,9 +76,16 @@ while(i < tot_images):
 		for m, n in matches:
 			if m.distance < 0.7 * n.distance:
 				good.append(m)
-		#pts0 = np.float32([kp0[m.queryIdx].pt for m in good])
-		#pts1 = np.float32([kp[m.trainIdx].pt for m in good])
+		pts0 = np.float32([kp0[m.queryIdx].pt for m in good])
+		pts1 = np.float32([kp[m.trainIdx].pt for m in good])
 		
+		E, mask = cv2.findEssentialMat(pts0, pts1, K, method=cv2.RANSAC, prob = 0.999, threshold = 0.4, mask = None)
+		pts0 = pts0[mask.ravel() == 1]
+		pts1 = pts1[mask.ravel() == 1]
+		_, R, t, mask = cv2.recoverPose(E, pts0, pts1, K)
+		pts0 = pts0[mask.ravel() > 0]
+		pts1 = pts1[mask.ravel() > 0]
+		print(len(pts0))
 		j = j + 1
 	keypoints = np.append(keypoints, kp)
 	
