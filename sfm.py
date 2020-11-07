@@ -245,7 +245,16 @@ def find_features(img0, img1):
 
     sift = cv2.xfeatures2d.SIFT_create()
     kp0, des0 = sift.detectAndCompute(img0gray, None)
+    
+    #lk_params = dict(winSize  = (15,15), maxLevel = 2, criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+    
+    
     kp1, des1 = sift.detectAndCompute(img1gray, None)
+    #pts0 = np.float32([m.pt for m in kp0])
+    #pts1, st, err = cv2.calcOpticalFlowPyrLK(img0gray, img1gray, pts0, None, **lk_params)
+    #pts0 = pts0[st.ravel() == 1]
+    #pts1 = pts1[st.ravel() == 1]
+    #print(pts0.shape, pts1.shape)
 
     bf = cv2.BFMatcher()
     matches = bf.knnMatch(des0, des1, k=2)

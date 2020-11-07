@@ -66,8 +66,6 @@ while(i < tot_images):
 	#if i != 0:
 	j = 0
 	while(j < i):
-		final = indexes[0:i].sum()
-		current = indexes[0:j + 1].sum()
 		kp0 = keypoints[indexes[0:j].sum():indexes[0:j + 1].sum()]
 		des0 = descriptors[indexes[0:j].sum():indexes[0:j + 1].sum()]
 		matches = bf.knnMatch(des0, des, k=2)
