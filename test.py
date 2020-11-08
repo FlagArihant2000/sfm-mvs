@@ -7,22 +7,19 @@ import open3d as o3d
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-def feat_to_tracks(kp, poses):
+def feat_to_tracks(kp, hs):
 	#print(kp.shape, poses.shape)
-	tot_corrs = poses.shape[1]
+	tot_corrs = hs.shape[0]
 	i = 0
 	while(i < tot_corrs):
-		pose = poses[:,i]
-		r, t = pose[0:3], pose[3:6]
-		R, _ = cv2.Rodrigues(r)
-		#print(kp.shape)
+		H = hs[i].reshape(3,3)
+		#print(H)
+		print(kp[0])
 		kp_h = cv2.convertPointsToHomogeneous(kp)[:, 0, :]
-		kp_h = kp_h - t.T
-		Rinv = np.linalg.inv(R)
-		
-		kp_h = np.array([np.matmul(Rinv, kp_) for kp_ in kp_h])
+		Hinv = np.linalg.inv(H)
+		kp_h = np.array([np.matmul(Hinv, kp_) for kp_ in kp_h])
 		kp = cv2.convertPointsFromHomogeneous(kp_h)[:, 0, :]
-		print(kp)
+		print(kp[0])
 		i = i + 1
 		
 	
@@ -115,13 +112,18 @@ while(i < img_tot):
 	#	find_common(kp1o, kp0, des1o, des0)
 	
 	_, R, t, mask = cv2.recoverPose(E, kp0, kp1, K)
-	r, _ = cv2.Rodrigues(R)
+	#r, _ = cv2.Rodrigues(R)
 	#print(r.shape, t.shape)
-	Rt = np.vstack((r,t))
+	#Rt = np.vstack((r,t))
+	H, _ = cv2.findHomography(kp0, kp1, cv2.RANSAC)
 	if i == 1:
-		all_poses = Rt
+		all_poses = np.array(H.ravel())
 	else:
-		all_poses = np.hstack((Rt, all_poses))
+		all_poses = np.vstack((H.ravel(), all_poses))
+	#if i == 1:
+	#	all_poses = Rt
+	#else:
+	#	all_poses = np.hstack((Rt, all_poses))
 	"""if len(kp0) < feature_thresh:
 		print("Frame: ",i, "Less features! Restart tracks")
 		#print("Frame: ",i,",Total features tracked: ",len(kp0))
@@ -140,4 +142,5 @@ while(i < img_tot):
 	i = i + 1
 #print(des0)
 feat_to_tracks(kp1, all_poses)
+print(all_poses.shape)
 cv2.destroyAllWindows()
