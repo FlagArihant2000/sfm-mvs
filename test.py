@@ -11,16 +11,19 @@ def feat_to_tracks(kp, hs):
 	#print(kp.shape, poses.shape)
 	tot_corrs = hs.shape[0]
 	i = 0
+	track_pts = np.array(kp)
 	while(i < tot_corrs):
 		H = hs[i].reshape(3,3)
 		#print(H)
-		print(kp[0])
+		#print(kp[0])
 		kp_h = cv2.convertPointsToHomogeneous(kp)[:, 0, :]
 		Hinv = np.linalg.inv(H)
 		kp_h = np.array([np.matmul(Hinv, kp_) for kp_ in kp_h])
 		kp = cv2.convertPointsFromHomogeneous(kp_h)[:, 0, :]
-		print(kp[0])
+		track_pts = np.hstack((kp, track_pts))
+		
 		i = i + 1
+	return track_pts
 		
 	
 def img_downscale(img, downscale):
@@ -76,8 +79,8 @@ i = 1
 img0 = img_downscale(cv2.imread(img_dir + '/' + images[0]), downscale)
 img0gray = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
 kp0, des0 = sift.detectAndCompute(img0gray, None)
-
-img_tot = 3 #len(images)
+print("Frame: ",i,",Total features tracked: ",len(des0))
+img_tot = 8 #len(images)
 feature_thresh = 20
 all_poses = np.array([])
 while(i < img_tot):
@@ -124,11 +127,10 @@ while(i < img_tot):
 	#	all_poses = Rt
 	#else:
 	#	all_poses = np.hstack((Rt, all_poses))
-	"""if len(kp0) < feature_thresh:
-		print("Frame: ",i, "Less features! Restart tracks")
-		#print("Frame: ",i,",Total features tracked: ",len(kp0))
+	if len(kp0) < feature_thresh:
+		print("Frame: ",i+1, "Less features! Restart tracks")
 	else:
-		print("Frame: ",i,",Total features tracked: ",len(kp0))"""
+		print("Frame: ",i+1,",Total features tracked: ",len(kp0))
 	
 	kp0 = kp1
 	kp1o = kp1
@@ -141,6 +143,6 @@ while(i < img_tot):
 		break
 	i = i + 1
 #print(des0)
-feat_to_tracks(kp1, all_poses)
-print(all_poses.shape)
+track = feat_to_tracks(kp1, all_poses)
+print(track.shape)
 cv2.destroyAllWindows()
