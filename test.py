@@ -7,6 +7,25 @@ import open3d as o3d
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
+def feat_to_tracks(kp, poses):
+	#print(kp.shape, poses.shape)
+	tot_corrs = poses.shape[1]
+	i = 0
+	while(i < tot_corrs):
+		pose = poses[:,i]
+		r, t = pose[0:3], pose[3:6]
+		R, _ = cv2.Rodrigues(r)
+		#print(kp.shape)
+		kp_h = cv2.convertPointsToHomogeneous(kp)[:, 0, :]
+		kp_h = kp_h - t.T
+		Rinv = np.linalg.inv(R)
+		
+		kp_h = np.array([np.matmul(Rinv, kp_) for kp_ in kp_h])
+		kp = cv2.convertPointsFromHomogeneous(kp_h)[:, 0, :]
+		print(kp)
+		i = i + 1
+		
+	
 def img_downscale(img, downscale):
 	downscale = int(downscale/2)
 	i = 1
@@ -56,12 +75,14 @@ for img in img_list:
 i = 1
 #print(images)
 
+# Acquiring the first image and detecting features using SIFT
 img0 = img_downscale(cv2.imread(img_dir + '/' + images[0]), downscale)
 img0gray = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
 kp0, des0 = sift.detectAndCompute(img0gray, None)
 
-img_tot = 9 #len(images)
+img_tot = 3 #len(images)
 feature_thresh = 20
+all_poses = np.array([])
 while(i < img_tot):
 	
 	img1 = img_downscale(cv2.imread(img_dir + '/' + images[i]), downscale)
@@ -77,7 +98,8 @@ while(i < img_tot):
 		kp0 = np.float32([kp0[m.queryIdx].pt for m in good])
 	else:
 		kp0 = np.float32([kp0[m.queryIdx] for m in good])
-
+	
+	
 	kp1 = np.float32([kp1[m.trainIdx].pt for m in good])
 	des0 = np.float32([des0[m.queryIdx] for m in good])
 	des1 = np.float32([des1[m.trainIdx] for m in good])
@@ -89,16 +111,26 @@ while(i < img_tot):
 	
 	des0 = des0[mask.ravel() == 1]
 	des1 = des1[mask.ravel() == 1]
+	#if i != 1:
+	#	find_common(kp1o, kp0, des1o, des0)
 	
 	_, R, t, mask = cv2.recoverPose(E, kp0, kp1, K)
-	
-	if len(kp0) < feature_thresh:
+	r, _ = cv2.Rodrigues(R)
+	#print(r.shape, t.shape)
+	Rt = np.vstack((r,t))
+	if i == 1:
+		all_poses = Rt
+	else:
+		all_poses = np.hstack((Rt, all_poses))
+	"""if len(kp0) < feature_thresh:
 		print("Frame: ",i, "Less features! Restart tracks")
 		#print("Frame: ",i,",Total features tracked: ",len(kp0))
 	else:
-		print("Frame: ",i,",Total features tracked: ",len(kp0))
+		print("Frame: ",i,",Total features tracked: ",len(kp0))"""
 	
 	kp0 = kp1
+	kp1o = kp1
+	des1o = des1
 	img0 = img1
 	des0 = des1
 	img0gray = img1gray
@@ -106,6 +138,6 @@ while(i < img_tot):
 	if cv2.waitKey(1) & 0xff == ord('q'):
 		break
 	i = i + 1
-print(des0)
-
+#print(des0)
+feat_to_tracks(kp1, all_poses)
 cv2.destroyAllWindows()
