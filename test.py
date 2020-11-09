@@ -154,24 +154,27 @@ i = 0
 I0 = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
 P0 = np.matmul(K, I0)
 
+kp0 = track[:, i:i + 2]
+kp1 = track[:, i + 2:i + 4]
+E = all_poses[:, 0]
+r = E[0:3]
+t = E[3:6]
+R, _ = cv2.Rodrigues(r)
+t = t.reshape(3,1)
+Rt = np.hstack((R,t))
+P1 = np.matmul(K, Rt)
+cloud = cv2.triangulatePoints(P0, P1, kp0.T, kp1.T).T
+X = cv2.convertPointsFromHomogeneous(cloud)[:, 0, :]
+
 while(int(i/2) < img_tot - 2):
-	kp0 = track[:, i:i + 2]
-	kp1 = track[:, i + 2:i + 4]
-	E = all_poses[:, 0]
-	r = E[0:3]
-	t = E[3:6]
-	R, _ = cv2.Rodrigues(r)
-	t = t.reshape(3,1)
-	Rt = np.hstack((R,t))
-	P1 = np.matmul(K, Rt)
-	cloud = cv2.triangulatePoints(P0, P1, kp0.T, kp1.T).T
-	X = cv2.convertPointsFromHomogeneous(cloud)[:, 0, :]
 	#print(kp[0])
 	kp = track[:, i + 4:i + 6]
 	#print(kp0.shape, kp.shape, kp1.shape)
 	ret, rvecs, t, inliers = cv2.solvePnPRansac(X, kp, K, d, cv2.SOLVEPNP_ITERATIVE)
-	R, _ = cv2.Rodrigues(r)
+	R, _ = cv2.Rodrigues(rvecs)
 	#print(X[0])
+	P2 = np.matmul(K, np.hstack((R,t)))
+	print(t)
 	
 	i = i + 2
 
