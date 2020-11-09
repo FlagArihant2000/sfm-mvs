@@ -34,6 +34,40 @@ def img_downscale(img, downscale):
 		i = i + 1
 	return img
 
+def to_ply(path, point_cloud, colors, densify):
+    out_points = point_cloud.reshape(-1, 3) * 200
+    out_colors = colors.reshape(-1, 3)
+    #print(out_colors.shape, out_points.shape)
+    verts = np.hstack([out_points, out_colors])
+
+    # cleaning point cloud
+    mean = np.mean(verts[:, :3], axis=0)
+    temp = verts[:, :3] - mean
+    dist = np.sqrt(temp[:, 0] ** 2 + temp[:, 1] ** 2 + temp[:, 2] ** 2)
+    #print(dist.shape, np.mean(dist))
+    indx = np.where(dist < np.mean(dist) + 300)
+    verts = verts[indx]
+    #print( verts.shape)
+    ply_header = '''ply
+		format ascii 1.0
+		element vertex %(vert_num)d
+		property float x
+		property float y
+		property float z
+		property uchar blue
+		property uchar green
+		property uchar red
+		end_header
+		'''
+    if not densify:
+        with open(path + '/Point_Cloud/sparse.ply', 'w') as f:
+            f.write(ply_header % dict(vert_num=len(verts)))
+            np.savetxt(f, verts, '%f %f %f %d %d %d')
+    else:
+        with open(path + '/Point_Cloud/isparse.ply', 'w') as f:
+            f.write(ply_header % dict(vert_num=len(verts)))
+            np.savetxt(f, verts, '%f %f %f %d %d %d')
+
 
 cv2.namedWindow('image', cv2.WINDOW_NORMAL)
 # Input Camera Intrinsic Parameters
@@ -146,7 +180,7 @@ while(i < img_tot):
 #print(des0)
 # Output is a set of tracked feature points across 'i' images
 track = feat_to_tracks(kp1, homography)
-print(track.shape, all_poses.shape, i)
+#print(track.shape, all_poses.shape, i)
 cv2.destroyAllWindows()
 
 # Triangulation
@@ -165,7 +199,8 @@ Rt = np.hstack((R,t))
 P1 = np.matmul(K, Rt)
 cloud = cv2.triangulatePoints(P0, P1, kp0.T, kp1.T).T
 X = cv2.convertPointsFromHomogeneous(cloud)[:, 0, :]
-
+camera_poses = np.array(P0.ravel())
+camera_poses = np.vstack((camera_poses, P1.ravel()))
 while(int(i/2) < img_tot - 2):
 	#print(kp[0])
 	kp = track[:, i + 4:i + 6]
@@ -174,15 +209,53 @@ while(int(i/2) < img_tot - 2):
 	R, _ = cv2.Rodrigues(rvecs)
 	#print(X[0])
 	P2 = np.matmul(K, np.hstack((R,t)))
-	print(t)
+	camera_poses = np.vstack((camera_poses, P2.ravel()))
 	
 	i = i + 2
 
+# Now, we have the coordinates for all camera positions. Now, perform final triangulation.
+i = 0
+while(i < img_tot - 1):
+	img0 = img_downscale(cv2.imread(img_dir + '/' + images[i]), downscale)
+	img0gray = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
+	kp0, des0 = sift.detectAndCompute(img0gray, None)
+	
+	img1 = img_downscale(cv2.imread(img_dir + '/' + images[i + 1]), downscale)
+	img1gray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+	kp1, des1 = sift.detectAndCompute(img1gray, None)
+	
+	matches = bf.knnMatch(des0, des1, k = 2)
+	good = []
+	for m, n in matches:
+		if m.distance < 0.7 * n.distance:
+			good.append(m)
+	
+	kp0 = np.float32([kp0[m.queryIdx].pt for m in good])
+	kp1 = np.float32([kp1[m.trainIdx].pt for m in good])
+	
+	#E, mask = cv2.findEssentialMat(kp0, kp1, K, method=cv2.RANSAC, prob = 0.999, threshold = 1, mask = None)
+	
+	#kp0 = kp0[mask.ravel() == 1]
+	#kp1 = kp1[mask.ravel() == 1]
+	
+	P0 = camera_poses[i].reshape((3,4))
+	P1 = camera_poses[i + 1].reshape((3,4))
+	#print(P0, P1)
+	#print(P0)
+	cloud = cv2.triangulatePoints(P0, P1, kp0.T, kp1.T).T
+	cloud = cv2.convertPointsFromHomogeneous(cloud)[:, 0, :]
+	#print(cloud.shape)
+	print("Registering Pair: ",i+1)
+	Xtot = np.vstack((Xtot, cloud))
+	kp1_reg = np.array(kp1, dtype=np.int32)
+	colors = np.array([img1[l[1], l[0]] for l in kp1_reg])
+	colorstot = np.vstack((colorstot, colors))
+	#print(Xtot.shape, colorstot.shape)	
+	i = i + 1
 
-
-
-
-
-
+print("Processing Point Cloud...")
+print("Total Points in Point Cloud: ",Xtot.shape)
+to_ply(path, Xtot, colorstot, densify = True)
+print("Done!")
 
 
