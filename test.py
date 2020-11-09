@@ -38,7 +38,7 @@ def img_downscale(img, downscale):
 cv2.namedWindow('image', cv2.WINDOW_NORMAL)
 # Input Camera Intrinsic Parameters
 K = np.array([[2393.952166119461, -3.410605131648481e-13, 932.3821770809047], [0, 2398.118540286656, 628.2649953288065], [0, 0, 1]])
-
+d = np.zeros((5,1))
 # Suppose if computationally heavy, then the images can be downsampled once. Note that downsampling is done in powers of two, that is, 1,2,4,8,...
 downscale = 2
 K[0,0] = K[0,0] / float(downscale)
@@ -80,8 +80,9 @@ img0 = img_downscale(cv2.imread(img_dir + '/' + images[0]), downscale)
 img0gray = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
 kp0, des0 = sift.detectAndCompute(img0gray, None)
 print("Frame: ",i,",Total features tracked: ",len(des0))
-img_tot = 8 #len(images)
+img_tot = 9 #len(images)
 feature_thresh = 20
+homography = np.array([])
 all_poses = np.array([])
 while(i < img_tot):
 	
@@ -115,23 +116,23 @@ while(i < img_tot):
 	#	find_common(kp1o, kp0, des1o, des0)
 	
 	_, R, t, mask = cv2.recoverPose(E, kp0, kp1, K)
-	#r, _ = cv2.Rodrigues(R)
+	r, _ = cv2.Rodrigues(R)
 	#print(r.shape, t.shape)
-	#Rt = np.vstack((r,t))
-	H, _ = cv2.findHomography(kp0, kp1, cv2.RANSAC)
-	if i == 1:
-		all_poses = np.array(H.ravel())
-	else:
-		all_poses = np.vstack((H.ravel(), all_poses))
-	#if i == 1:
-	#	all_poses = Rt
-	#else:
-	#	all_poses = np.hstack((Rt, all_poses))
+	Rt = np.vstack((r,t))
 	if len(kp0) < feature_thresh:
 		print("Frame: ",i+1, "Less features! Restart tracks")
+		break
 	else:
 		print("Frame: ",i+1,",Total features tracked: ",len(kp0))
-	
+		
+	H, _ = cv2.findHomography(kp0, kp1, cv2.RANSAC)
+	if i == 1:
+		homography = np.array(H.ravel())
+		all_poses = np.array(Rt)
+	else:
+		homography = np.vstack((H.ravel(), homography))
+		all_poses = np.hstack((all_poses, Rt))
+		
 	kp0 = kp1
 	kp1o = kp1
 	des1o = des1
@@ -143,6 +144,42 @@ while(i < img_tot):
 		break
 	i = i + 1
 #print(des0)
-track = feat_to_tracks(kp1, all_poses)
-print(track.shape)
+# Output is a set of tracked feature points across 'i' images
+track = feat_to_tracks(kp1, homography)
+print(track.shape, all_poses.shape, i)
 cv2.destroyAllWindows()
+
+# Triangulation
+i = 0
+I0 = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
+P0 = np.matmul(K, I0)
+
+while(int(i/2) < img_tot - 2):
+	kp0 = track[:, i:i + 2]
+	kp1 = track[:, i + 2:i + 4]
+	E = all_poses[:, 0]
+	r = E[0:3]
+	t = E[3:6]
+	R, _ = cv2.Rodrigues(r)
+	t = t.reshape(3,1)
+	Rt = np.hstack((R,t))
+	P1 = np.matmul(K, Rt)
+	cloud = cv2.triangulatePoints(P0, P1, kp0.T, kp1.T).T
+	X = cv2.convertPointsFromHomogeneous(cloud)[:, 0, :]
+	#print(kp[0])
+	kp = track[:, i + 4:i + 6]
+	#print(kp0.shape, kp.shape, kp1.shape)
+	ret, rvecs, t, inliers = cv2.solvePnPRansac(X, kp, K, d, cv2.SOLVEPNP_ITERATIVE)
+	R, _ = cv2.Rodrigues(r)
+	#print(X[0])
+	
+	i = i + 2
+
+
+
+
+
+
+
+
+
