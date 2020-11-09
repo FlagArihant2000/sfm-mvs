@@ -34,6 +34,61 @@ def img_downscale(img, downscale):
 		i = i + 1
 	return img
 
+def ReprojectionError(cloud, poses, tracks, K):
+	i = 0
+	repr_error = 0
+	while(i < len(poses)):
+		Rt = poses[i].reshape((3,4))
+		R = Rt[:3, :3]
+		t = Rt[:3, 3]
+		r, _ = cv2.Rodrigues(R)
+		
+		p = track[:, i:i + 2]
+		p_reproj, _ = cv2.projectPoints(X, r, t, K, distCoeffs=None)
+		p_reproj = p_reproj[:, 0, :]
+		#print(X.shape, p.shape, p_reproj.shape)
+		total_error = cv2.norm(p, p_reproj, cv2.NORM_L2)
+		repr_error = repr_error + total_error / len(p)
+		i = i + 1
+	return repr_error
+	
+def OptimReprojectionError(x):
+	Rt = x[0:12].reshape((3,4))
+	K = x[12:21].reshape((3,3))
+	rest = len(x[21:])
+	rest = int(rest * 0.4)
+	p = x[21:21 + rest].reshape((2, int(rest/2)))
+	X = x[21 + rest:].reshape((int(len(x[21 + rest:])/3), 3))
+	R = Rt[:3, :3]
+	t = Rt[:3, 3]
+	
+	total_error = 0
+	
+	p = p.T
+	num_pts = len(p)
+	error = []
+	r, _ = cv2.Rodrigues(R)
+	
+	p2d, _ = cv2.projectPoints(X, r, t, K, distCoeffs = None)
+	p2d = p2d[:, 0, :]
+	#print(p2d[0], p[0])
+	for idx in range(num_pts):
+		img_pt = p[idx]
+		reprojected_pt = p2d[idx]
+		er = (img_pt - reprojected_pt)**2
+		error.append(er)
+	
+	err_arr = np.array(error).ravel()/num_pts
+	
+	print(np.sum(err_arr))
+	#err_arr = np.sum(err_arr)
+	
+
+	return err_arr
+
+def BundleAdjustment(cloud, poses, tracks, K):
+	print(cloud.shape, poses.shape, tracks.shape)
+
 def to_ply(path, point_cloud, colors, densify):
     out_points = point_cloud.reshape(-1, 3) * 200
     out_colors = colors.reshape(-1, 3)
@@ -71,7 +126,9 @@ def to_ply(path, point_cloud, colors, densify):
 
 cv2.namedWindow('image', cv2.WINDOW_NORMAL)
 # Input Camera Intrinsic Parameters
-K = np.array([[2393.952166119461, -3.410605131648481e-13, 932.3821770809047], [0, 2398.118540286656, 628.2649953288065], [0, 0, 1]])
+#K = np.array([[2393.952166119461, -3.410605131648481e-13, 932.3821770809047], [0, 2398.118540286656, 628.2649953288065], [0, 0, 1]])
+
+K = np.array([[2759.48, 0, 1520.69], [0, 2764.16, 1006.81], [0, 0, 1]])
 d = np.zeros((5,1))
 # Suppose if computationally heavy, then the images can be downsampled once. Note that downsampling is done in powers of two, that is, 1,2,4,8,...
 downscale = 2
@@ -85,15 +142,10 @@ path = os.getcwd()
 
 # Input the directory where the images are kept. Note that the images have to be named in order for this particular implementation
 #img_dir = path + '/Sample Dataset/'
-img_dir = '/home/arihant/Desktop/gustav/'
+#img_dir = '/home/arihant/Desktop/gustav/'
 
-posearr = K.ravel()
-R_t_0 = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
-R_t_1 = np.empty((3, 4))
+img_dir = '/home/arihant/Desktop/SfM_quality_evaluation/Benchmarking_Camera_Calibration_2008/fountain-P11/images/' 
 
-P1 = np.matmul(K, R_t_0)
-Pref = P1
-P2 = np.empty((3, 4))
 
 Xtot = np.zeros((1, 3))
 colorstot = np.zeros((1, 3))
@@ -114,7 +166,7 @@ img0 = img_downscale(cv2.imread(img_dir + '/' + images[0]), downscale)
 img0gray = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
 kp0, des0 = sift.detectAndCompute(img0gray, None)
 print("Frame: ",i,",Total features tracked: ",len(des0))
-img_tot = 9 #len(images)
+img_tot = 10 #len(images)
 feature_thresh = 20
 homography = np.array([])
 all_poses = np.array([])
@@ -186,6 +238,7 @@ cv2.destroyAllWindows()
 # Triangulation
 i = 0
 I0 = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
+camera_poses = np.array(I0.ravel())
 P0 = np.matmul(K, I0)
 
 kp0 = track[:, i:i + 2]
@@ -196,22 +249,31 @@ t = E[3:6]
 R, _ = cv2.Rodrigues(r)
 t = t.reshape(3,1)
 Rt = np.hstack((R,t))
+camera_poses = np.vstack((camera_poses, Rt.ravel()))
 P1 = np.matmul(K, Rt)
 cloud = cv2.triangulatePoints(P0, P1, kp0.T, kp1.T).T
 X = cv2.convertPointsFromHomogeneous(cloud)[:, 0, :]
-camera_poses = np.array(P0.ravel())
-camera_poses = np.vstack((camera_poses, P1.ravel()))
+#camera_poses = np.array(P0.ravel())
+#camera_poses = np.vstack((camera_poses, P1.ravel()))
 while(int(i/2) < img_tot - 2):
 	#print(kp[0])
 	kp = track[:, i + 4:i + 6]
 	#print(kp0.shape, kp.shape, kp1.shape)
 	ret, rvecs, t, inliers = cv2.solvePnPRansac(X, kp, K, d, cv2.SOLVEPNP_ITERATIVE)
 	R, _ = cv2.Rodrigues(rvecs)
+	Rt = np.hstack((R, t))
+	#print(rvecs.shape, t.shape, rt.shape)
 	#print(X[0])
-	P2 = np.matmul(K, np.hstack((R,t)))
-	camera_poses = np.vstack((camera_poses, P2.ravel()))
-	
+	#P2 = np.matmul(K, np.hstack((R,t)))
+	camera_poses = np.vstack((camera_poses, Rt.ravel()))
 	i = i + 2
+
+
+# Finding Overall Reprojection Error
+#error = ReprojectionError(X, camera_poses, track, K)
+#print("Reprojection Error: ", error)
+#BundleAdjustment(X, camera_poses, track, K)
+
 
 # Now, we have the coordinates for all camera positions. Now, perform final triangulation.
 i = 0
@@ -219,10 +281,14 @@ while(i < img_tot - 1):
 	img0 = img_downscale(cv2.imread(img_dir + '/' + images[i]), downscale)
 	img0gray = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
 	kp0, des0 = sift.detectAndCompute(img0gray, None)
+	Rt = camera_poses[i].reshape((3,4))
+	P0 = np.matmul(K, Rt)
 	
 	img1 = img_downscale(cv2.imread(img_dir + '/' + images[i + 1]), downscale)
 	img1gray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
 	kp1, des1 = sift.detectAndCompute(img1gray, None)
+	Rt = camera_poses[i + 1].reshape((3,4))
+	P1 = np.matmul(K, Rt)
 	
 	matches = bf.knnMatch(des0, des1, k = 2)
 	good = []
@@ -237,9 +303,6 @@ while(i < img_tot - 1):
 	
 	#kp0 = kp0[mask.ravel() == 1]
 	#kp1 = kp1[mask.ravel() == 1]
-	
-	P0 = camera_poses[i].reshape((3,4))
-	P1 = camera_poses[i + 1].reshape((3,4))
 	#print(P0, P1)
 	#print(P0)
 	cloud = cv2.triangulatePoints(P0, P1, kp0.T, kp1.T).T
