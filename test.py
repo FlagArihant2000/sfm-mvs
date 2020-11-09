@@ -44,50 +44,64 @@ def ReprojectionError(cloud, poses, tracks, K):
 		r, _ = cv2.Rodrigues(R)
 		
 		p = track[:, i:i + 2]
-		p_reproj, _ = cv2.projectPoints(X, r, t, K, distCoeffs=None)
+		p_reproj, _ = cv2.projectPoints(cloud, r, t, K, distCoeffs=None)
 		p_reproj = p_reproj[:, 0, :]
-		#print(X.shape, p.shape, p_reproj.shape)
+		#print(p[0], p_reproj[0])
 		total_error = cv2.norm(p, p_reproj, cv2.NORM_L2)
 		repr_error = repr_error + total_error / len(p)
 		i = i + 1
+	#print(p[2], p_reproj[2])
 	return repr_error
 	
-def OptimReprojectionError(x):
-	Rt = x[0:12].reshape((3,4))
-	K = x[12:21].reshape((3,3))
-	rest = len(x[21:])
-	rest = int(rest * 0.4)
-	p = x[21:21 + rest].reshape((2, int(rest/2)))
-	X = x[21 + rest:].reshape((int(len(x[21 + rest:])/3), 3))
-	R = Rt[:3, :3]
-	t = Rt[:3, 3]
+def OptimReprojectionError(x, cloud_len, poses_len, tracks_len, img_tot):
+	K = x[0:9].reshape((3,3))
+	poses = x[9:9 + poses_len].reshape((img_tot,12))
+	cloud = x[9 + poses_len: 9 + poses_len + cloud_len].reshape((int(cloud_len/3),3))
+	temp = 9 + poses_len + cloud_len
+	tracks = x[temp: temp + tracks_len].reshape((int(cloud_len/3),2 * img_tot))
 	
-	total_error = 0
-	
-	p = p.T
-	num_pts = len(p)
 	error = []
-	r, _ = cv2.Rodrigues(R)
+	i = 0
+	while(i < img_tot):
+		Rt = poses[i].reshape((3,4))
+		R = Rt[:3, :3]
+		t = Rt[:3, 3]
+		r, _ = cv2.Rodrigues(R)
+		p = track[:, i:i + 2]
+		i = i + 1
+		p_reproj, _ = cv2.projectPoints(cloud, r, t, K, distCoeffs = None)
+		p_reproj = p_reproj[:, 0, :]
+		#print(p[0], p_reproj[0])
+		for idx in range(len(p)):
+			img_pt = p[idx]
+			reprojected_pt = p_reproj[idx]
+			er = (img_pt - reprojected_pt)**2
+			error = error + [er]
 	
-	p2d, _ = cv2.projectPoints(X, r, t, K, distCoeffs = None)
-	p2d = p2d[:, 0, :]
-	#print(p2d[0], p[0])
-	for idx in range(num_pts):
-		img_pt = p[idx]
-		reprojected_pt = p2d[idx]
-		er = (img_pt - reprojected_pt)**2
-		error.append(er)
-	
-	err_arr = np.array(error).ravel()/num_pts
-	
+	err_arr = np.array(error).ravel()/len(error)
 	print(np.sum(err_arr))
-	#err_arr = np.sum(err_arr)
-	
-
 	return err_arr
 
-def BundleAdjustment(cloud, poses, tracks, K):
-	print(cloud.shape, poses.shape, tracks.shape)
+def BundleAdjustment(cloud, poses, tracks, K, img_tot):
+	#print(cloud.shape, poses.shape, tracks.shape)
+	cloud_len = cloud.ravel().shape[0]
+	poses_len = poses.ravel().shape[0]
+	tracks_len = tracks.ravel().shape[0]
+	opt_variables = np.hstack((K.ravel(), poses.ravel()))
+	opt_variables = np.hstack((opt_variables, cloud.ravel()))
+	opt_variables = np.hstack((opt_variables, tracks.ravel()))
+	error_arr = OptimReprojectionError(opt_variables, cloud_len, poses_len, tracks_len, img_tot)
+	corrected_values = least_squares(fun = OptimReprojectionError, x0 = opt_variables, gtol = 2, args = (cloud_len, poses_len, tracks_len, img_tot))
+	corrected_values = corrected_values.x
+	K = corrected_values[0:9].reshape((3,3))
+	poses = corrected_values[9:9 + poses_len].reshape((img_tot,12))
+	cloud = corrected_values[9 + poses_len: 9 + poses_len + cloud_len].reshape((int(cloud_len/3),3))
+	temp = 9 + poses_len + cloud_len
+	tracks = corrected_values[temp: temp + tracks_len].reshape((int(cloud_len/3),2 * img_tot))
+	#print(poses.shape, cloud.shape, tracks.shape, K.shape)
+	return cloud, poses, tracks
+
+	
 
 def to_ply(path, point_cloud, colors, densify):
     out_points = point_cloud.reshape(-1, 3) * 200
@@ -123,7 +137,7 @@ def to_ply(path, point_cloud, colors, densify):
             f.write(ply_header % dict(vert_num=len(verts)))
             np.savetxt(f, verts, '%f %f %f %d %d %d')
 
-
+bundle_adjustment = False
 cv2.namedWindow('image', cv2.WINDOW_NORMAL)
 # Input Camera Intrinsic Parameters
 #K = np.array([[2393.952166119461, -3.410605131648481e-13, 932.3821770809047], [0, 2398.118540286656, 628.2649953288065], [0, 0, 1]])
@@ -141,7 +155,6 @@ K[1,2] = K[1,2] / float(downscale)
 path = os.getcwd()
 
 # Input the directory where the images are kept. Note that the images have to be named in order for this particular implementation
-#img_dir = path + '/Sample Dataset/'
 #img_dir = '/home/arihant/Desktop/gustav/'
 
 img_dir = '/home/arihant/Desktop/SfM_quality_evaluation/Benchmarking_Camera_Calibration_2008/fountain-P11/images/' 
@@ -166,7 +179,7 @@ img0 = img_downscale(cv2.imread(img_dir + '/' + images[0]), downscale)
 img0gray = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
 kp0, des0 = sift.detectAndCompute(img0gray, None)
 print("Frame: ",i,",Total features tracked: ",len(des0))
-img_tot = 10 #len(images)
+img_tot = 10#len(images)
 feature_thresh = 20
 homography = np.array([])
 all_poses = np.array([])
@@ -207,7 +220,6 @@ while(i < img_tot):
 	Rt = np.vstack((r,t))
 	if len(kp0) < feature_thresh:
 		print("Frame: ",i+1, "Less features! Restart tracks")
-		break
 	else:
 		print("Frame: ",i+1,",Total features tracked: ",len(kp0))
 		
@@ -255,9 +267,10 @@ cloud = cv2.triangulatePoints(P0, P1, kp0.T, kp1.T).T
 X = cv2.convertPointsFromHomogeneous(cloud)[:, 0, :]
 #camera_poses = np.array(P0.ravel())
 #camera_poses = np.vstack((camera_poses, P1.ravel()))
-while(int(i/2) < img_tot - 2):
+i = 4
+while(int(i/2) < img_tot):
 	#print(kp[0])
-	kp = track[:, i + 4:i + 6]
+	kp = track[:, i:i + 2]
 	#print(kp0.shape, kp.shape, kp1.shape)
 	ret, rvecs, t, inliers = cv2.solvePnPRansac(X, kp, K, d, cv2.SOLVEPNP_ITERATIVE)
 	R, _ = cv2.Rodrigues(rvecs)
@@ -270,10 +283,12 @@ while(int(i/2) < img_tot - 2):
 
 
 # Finding Overall Reprojection Error
-#error = ReprojectionError(X, camera_poses, track, K)
-#print("Reprojection Error: ", error)
-#BundleAdjustment(X, camera_poses, track, K)
-
+error = ReprojectionError(X, camera_poses, track, K)
+print("Reprojection Error: ", error)
+if bundle_adjustment:
+	X, camera_poses, track = BundleAdjustment(X, camera_poses, track, K, img_tot)
+	error = ReprojectionError(X, camera_poses, track, K)
+	print("Minimized Reprojection Error: ", error)
 
 # Now, we have the coordinates for all camera positions. Now, perform final triangulation.
 i = 0
