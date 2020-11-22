@@ -24,6 +24,35 @@ def feat_to_tracks(kp, hs):
 		
 		i = i + 1
 	return track_pts
+
+def feat_to_tracks2(features, descriptors, sizes):
+	i = 0
+	kpref = features[features.shape[0] - sizes[-1]:features.shape[0]]
+	desref = descriptors[features.shape[0] - sizes[-1]:features.shape[0]]
+	while(i < len(sizes)):
+		#ss = np.sum(sizes[0:i+1])
+		#print(ss)
+		if i == 0:
+			kp = features[0:np.sum(sizes[0:i + 1])]
+			des = descriptors[0:np.sum(sizes[0:i + 1])]
+		else:
+			kp = features[np.sum(sizes[0:i]):np.sum(sizes[0:i + 1])]
+			des = descriptors[np.sum(sizes[0:i]):np.sum(sizes[0:i + 1])]
+		bf = cv2.BFMatcher()
+		matches = bf.knnMatch(desref, des, k = 2)
+		#kp0 = np.float32([kp0[m.queryIdx] for m in matches])
+		good = []
+		for m, n in matches:
+			good.append(m)
+		kp1 = np.float32([kp[m.queryIdx] for m in good])
+		#print(kp1)
+		if i == 0:
+			tracks = np.array(kp1)
+		else:
+			tracks = np.hstack((tracks, kp1))
+		i = i + 1
+	return tracks
+	
 		
 	
 def img_downscale(img, downscale):
@@ -50,7 +79,7 @@ def ReprojectionError(cloud, poses, tracks, K):
 		total_error = cv2.norm(p, p_reproj, cv2.NORM_L2)
 		repr_error = repr_error + total_error / len(p)
 		i = i + 1
-	#print(p[2], p_reproj[2])
+	print(p[0], p_reproj[1])
 	return repr_error
 	
 def OptimReprojectionError(x, cloud_len, poses_len, tracks_len, img_tot):
@@ -75,11 +104,12 @@ def OptimReprojectionError(x, cloud_len, poses_len, tracks_len, img_tot):
 		for idx in range(len(p)):
 			img_pt = p[idx]
 			reprojected_pt = p_reproj[idx]
-			er = (img_pt - reprojected_pt)**2
+			#er = (img_pt - reprojected_pt)**2
+			er = np.sqrt((img_pt[0] - reprojected_pt[0])**2 + (img_pt[1] - reprojected_pt[1])**2)
 			error = error + [er]
-	
+	print(p[1], p_reproj[1])
 	err_arr = np.array(error).ravel()/len(error)
-	print(np.sum(err_arr))
+	#print(np.sum(err_arr))
 	return err_arr
 
 def BundleAdjustment(cloud, poses, tracks, K, img_tot):
@@ -183,6 +213,9 @@ img_tot = 10#len(images)
 feature_thresh = 20
 homography = np.array([])
 all_poses = np.array([])
+features = np.array([])
+descriptors = np.array([])
+sizes = []
 while(i < img_tot):
 	
 	img1 = img_downscale(cv2.imread(img_dir + '/' + images[i]), downscale)
@@ -213,7 +246,7 @@ while(i < img_tot):
 	des1 = des1[mask.ravel() == 1]
 	#if i != 1:
 	#	find_common(kp1o, kp0, des1o, des0)
-	
+	#print(kp0.shape)
 	_, R, t, mask = cv2.recoverPose(E, kp0, kp1, K)
 	r, _ = cv2.Rodrigues(R)
 	#print(r.shape, t.shape)
@@ -227,10 +260,15 @@ while(i < img_tot):
 	if i == 1:
 		homography = np.array(H.ravel())
 		all_poses = np.array(Rt)
+		features = np.array(kp0)
+		descriptors = np.array(des0)
 	else:
 		homography = np.vstack((H.ravel(), homography))
 		all_poses = np.hstack((all_poses, Rt))
-		
+		features = np.vstack((features, kp0))
+		descriptors = np.vstack((descriptors, des0))
+	sizes = sizes + [len(kp0)]
+	
 	kp0 = kp1
 	kp1o = kp1
 	des1o = des1
@@ -242,9 +280,15 @@ while(i < img_tot):
 		break
 	i = i + 1
 #print(des0)
+#print(features.shape, descriptors.shape, sizes)
+#track = feat_to_tracks2(features, descriptors, sizes)
+#print(track.shape)
+#track = np.hstack((track, kp1))
+
 # Output is a set of tracked feature points across 'i' images
 track = feat_to_tracks(kp1, homography)
-#print(track.shape, all_poses.shape, i)
+print(track.shape)
+
 cv2.destroyAllWindows()
 
 # Triangulation

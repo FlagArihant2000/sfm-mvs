@@ -9,7 +9,7 @@ The README is divided into two parts,
 ### Steps to Execute
 
 1. Clone the repository as ```git clone https://github.com/FlagArihant2000/sfm-mvs```
-2. ```cd sfm-mvs```. The directory for the image directory, along with the camera parameters can be updated accordingly.
+2. ```cd sfm-mvs```. The directory for the image directory (Line 30), along with the camera parameters (Line 16) can be updated accordingly.
 3. Run ```python3 sfm.py```.
 4. If executed successfully, open ```sparse.ply``` to analyse the sparse reconstruction using meshlab.
 
@@ -39,13 +39,6 @@ A sample image:
 <img src="Result/result.png" alt="Image" style="zoom:50%;" />
 
 
-
-### TO DO
-
-2. Speed up bundle adjustment.
-2. Transfer point cloud in Euclidean Space.
-3. Densify point cloud using multiview stereo.
-4. The end goal for this project is to have a large scale structure from motion, that uses unordered set of images.
 
 ### Team Members
 
